@@ -65,8 +65,10 @@ onMounted(() => {
   // 初始创建
   updatePrimitive()
 
-  // 开始动画循环
-  startAnimation()
+  // 开始动画循环（如果正在播放）
+  if (props.isPlaying) {
+    startAnimation()
+  }
 })
 
 onUnmounted(() => {
@@ -79,10 +81,25 @@ onUnmounted(() => {
 
 watch(() => props.shaderCode, updatePrimitive)
 watch(() => props.geometryType, updatePrimitive)
+watch(() => props.isPlaying, (playing) => {
+  if (playing) {
+    startTime = Date.now() - pausedTime // 恢复时从暂停位置继续
+    startAnimation()
+  } else {
+    stopAnimation()
+  }
+})
+
+let pausedTime = 0 // 记录暂停时的时间偏移
 
 function startAnimation() {
   const animate = () => {
     if (!viewer || !primitive) return
+    
+    // 检查是否暂停
+    if (!props.isPlaying) {
+      return
+    }
 
     // 更新 material uniforms
     if (primitive.appearance && (primitive.appearance as any).material) {
@@ -102,6 +119,9 @@ function startAnimation() {
         material.uniforms.u_mouse.z = mousePos.z
         material.uniforms.u_mouse.w = mousePos.w
       }
+      
+      // 记录当前时间偏移（用于暂停恢复）
+      pausedTime = material.uniforms.u_time
     }
 
     animationFrameId = requestAnimationFrame(animate)

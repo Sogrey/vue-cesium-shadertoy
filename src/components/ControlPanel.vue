@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import ShaderEditor from './ShaderEditor.vue'
 import GeometrySelector from './GeometrySelector.vue'
 import type { GeometryType, ShaderPreset } from '@/types'
@@ -14,6 +14,118 @@ const emit = defineEmits<{
 const selectedGeometry = ref<GeometryType>('plane')
 const isPlaying = ref(true)
 const shaderCode = ref('')
+
+// Cesium 代码生成相关
+const showCesiumCode = ref(false)
+const copySuccess = ref(false)
+const activeCodeTab = ref<'glsl' | 'ts'>('glsl')
+
+// 生成 Cesium 版本的 shader 代码
+const cesiumCode = computed(() => {
+  return `// Cesium Material Fragment Shader
+uniform float u_time;
+uniform vec2 u_resolution;
+uniform vec4 u_mouse;
+
+// ShaderToy 兼容宏
+#define iTime u_time
+#define iResolution u_resolution
+#define iMouse u_mouse
+#define texture(sampler, uv) czm_texture(sampler, uv)
+
+// ============ 你的 ShaderToy 代码 ============
+${shaderCode.value}
+// ============================================
+
+// Cesium Material 入口
+czm_material czm_getMaterial(czm_materialInput materialInput)
+{
+    czm_material material = czm_getDefaultMaterial(materialInput);
+    
+    vec2 fragCoord = materialInput.st * u_resolution;
+    vec4 fragColor;
+    
+    mainImage(fragColor, fragCoord);
+    
+    material.diffuse = fragColor.rgb;
+    material.alpha = fragColor.a;
+    
+    return material;
+}`
+})
+
+// TypeScript 使用示例
+const typescriptUsageCode = computed(() => {
+  return `// TypeScript 使用示例
+import * as Cesium from 'cesium'
+
+// 1. 创建 Material
+const fragmentShader = \`${cesiumCode.value.replace(/`/g, '\\`')}\`
+
+const material = new Cesium.Material({
+  fabric: {
+    type: 'ShaderToy',
+    uniforms: {
+      u_time: 0,
+      u_resolution: new Cesium.Cartesian2(800, 600),
+      u_mouse: new Cesium.Cartesian4(0, 0, 0, 0),
+    },
+    source: fragmentShader,
+  },
+})
+
+// 2. 应用到几何体
+const primitive = new Cesium.Primitive({
+  geometryInstances: new Cesium.GeometryInstance({
+    geometry: new Cesium.SphereGeometry({ radius: 100000 }),
+    modelMatrix: Cesium.Transforms.eastNorthUpToFixedFrame(
+      Cesium.Cartesian3.fromDegrees(116.39, 39.90, 500000)
+    ),
+  }),
+  appearance: new Cesium.MaterialAppearance({
+    material: material,
+    faceForward: true,
+  }),
+})
+
+viewer.scene.primitives.add(primitive)
+
+// 3. 动画循环
+let startTime = Date.now()
+function animate() {
+  material.uniforms.u_time = (Date.now() - startTime) / 1000
+  material.uniforms.u_resolution.x = viewer.canvas.width
+  material.uniforms.u_resolution.y = viewer.canvas.height
+  requestAnimationFrame(animate)
+}
+animate()`
+})
+
+// 复制代码
+async function copyCesiumCode() {
+  try {
+    await navigator.clipboard.writeText(cesiumCode.value)
+    copySuccess.value = true
+    setTimeout(() => {
+      copySuccess.value = false
+    }, 2000)
+  } catch (err) {
+    console.error('复制失败:', err)
+  }
+}
+
+// 复制 TypeScript 示例
+async function copyTypescriptCode() {
+  try {
+    await navigator.clipboard.writeText(typescriptUsageCode.value)
+    copySuccess.value = true
+    setTimeout(() => {
+      copySuccess.value = false
+    }, 2000)
+  } catch (err) {
+    console.error('复制失败:', err)
+  }
+}
 
 // ShaderToy 导入相关
 const shaderIdInput = ref('')
@@ -284,6 +396,50 @@ onMounted(() => {
         </button>
       </div>
       <ShaderEditor :model-value="shaderCode" @update:model-value="handleCodeChange" />
+      
+      <!-- 生成 Cesium 代码 -->
+      <div class="generate-section">
+        <button class="generate-btn" @click="showCesiumCode = !showCesiumCode">
+          {{ showCesiumCode ? '▼ 隐藏 Cesium 代码' : '▶ 生成 Cesium 代码' }}
+        </button>
+      </div>
+      
+      <div v-if="showCesiumCode" class="cesium-code-panel">
+        <div class="code-tabs">
+          <button 
+            :class="['tab-btn', { active: activeCodeTab === 'glsl' }]" 
+            @click="activeCodeTab = 'glsl'"
+          >
+            GLSL Shader
+          </button>
+          <button 
+            :class="['tab-btn', { active: activeCodeTab === 'ts' }]" 
+            @click="activeCodeTab = 'ts'"
+          >
+            TypeScript 示例
+          </button>
+        </div>
+        
+        <div v-if="activeCodeTab === 'glsl'" class="code-content">
+          <div class="code-header">
+            <span>Fragment Shader</span>
+            <button class="copy-btn" @click="copyCesiumCode">
+              {{ copySuccess ? '✓ 已复制' : '📋 复制' }}
+            </button>
+          </div>
+          <pre class="code-block"><code>{{ cesiumCode }}</code></pre>
+        </div>
+        
+        <div v-if="activeCodeTab === 'ts'" class="code-content">
+          <div class="code-header">
+            <span>TypeScript 使用示例</span>
+            <button class="copy-btn" @click="copyTypescriptCode">
+              {{ copySuccess ? '✓ 已复制' : '📋 复制' }}
+            </button>
+          </div>
+          <pre class="code-block ts-code"><code>{{ typescriptUsageCode }}</code></pre>
+        </div>
+      </div>
     </div>
 
     <div class="section tips">
@@ -524,5 +680,127 @@ onMounted(() => {
 
 .api-hint a {
   color: #00d9ff;
+}
+
+/* Cesium 代码生成样式 */
+.generate-section {
+  margin-top: 12px;
+}
+
+.generate-btn {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #6366f1;
+  background: transparent;
+  color: #818cf8;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.generate-btn:hover {
+  background: #6366f1;
+  color: #fff;
+}
+
+.cesium-code-panel {
+  margin-top: 12px;
+  border: 1px solid #0f3460;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.code-tabs {
+  display: flex;
+  background: #0d1117;
+  border-bottom: 1px solid #0f3460;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  background: transparent;
+  color: #8892b0;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.tab-btn:hover {
+  color: #e0e0e0;
+}
+
+.tab-btn.active {
+  color: #00d9ff;
+  background: #1a1a2e;
+  border-bottom: 2px solid #00d9ff;
+}
+
+.code-content {
+  background: #0d1117;
+}
+
+.code-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #161b22;
+  border-bottom: 1px solid #0f3460;
+  font-size: 12px;
+  color: #8892b0;
+}
+
+.copy-btn {
+  padding: 4px 10px;
+  border: 1px solid #0f3460;
+  background: transparent;
+  color: #00d9ff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.2s;
+}
+
+.copy-btn:hover {
+  background: #00d9ff;
+  color: #16213e;
+}
+
+.code-block {
+  margin: 0;
+  padding: 12px;
+  max-height: 400px;
+  overflow: auto;
+  font-family: 'Fira Code', 'Consolas', monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #c9d1d9;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.code-block::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.code-block::-webkit-scrollbar-track {
+  background: #0d1117;
+}
+
+.code-block::-webkit-scrollbar-thumb {
+  background: #0f3460;
+  border-radius: 3px;
+}
+
+.code-block::-webkit-scrollbar-thumb:hover {
+  background: #1f3460;
+}
+
+.ts-code {
+  color: #7ee787;
 }
 </style>
