@@ -197,8 +197,11 @@ async function importShader() {
 
 // 初始化
 onMounted(() => {
-  shaderCode.value = presets[0].code
-  emit('update:shaderCode', presets[0].code)
+  const firstPreset = presets[0]
+  if (firstPreset) {
+    shaderCode.value = firstPreset.code
+    emit('update:shaderCode', firstPreset.code)
+  }
   emit('update:geometryType', selectedGeometry.value)
 })
 </script>
@@ -265,7 +268,7 @@ onMounted(() => {
         <button
           v-for="preset in presets"
           :key="preset.id"
-          :class="['preset-btn', { active: currentPreset.id === preset.id }]"
+          :class="['preset-btn', { active: currentPreset?.id === preset.id }]"
           @click="selectPreset(preset)"
         >
           {{ preset.name }}

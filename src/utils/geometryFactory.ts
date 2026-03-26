@@ -31,7 +31,7 @@ export function createGeometry(
   }
 
   // 计算模型矩阵，将几何体放置在指定位置
-  let modelMatrix: Matrix4
+  let modelMatrix: any
   if (position) {
     const cartesianPosition = Cartesian3.fromDegrees(
       position.longitude,
@@ -50,7 +50,7 @@ export function createGeometry(
       Matrix4.multiply(modelMatrix, transform, modelMatrix)
     }
   } else {
-    modelMatrix = Matrix4.IDENTITY
+    modelMatrix = Matrix4.IDENTITY.clone()
   }
 
   const geometryInstance = new GeometryInstance({
@@ -65,7 +65,7 @@ export function createGeometry(
  * 创建平面
  */
 function createPlane(cesium: typeof import('cesium'), scale: number) {
-  const { Geometry, GeometryAttribute, ComponentDatatype, PrimitiveType } = cesium
+  const { Geometry, GeometryAttribute, ComponentDatatype, PrimitiveType, BoundingSphere } = cesium
 
   const halfSize = scale
   const positions = new Float64Array([
@@ -87,6 +87,9 @@ function createPlane(cesium: typeof import('cesium'), scale: number) {
 
   const indices = new Uint16Array([0, 1, 2, 0, 2, 3])
 
+  // 计算 boundingSphere
+  const boundingSphere = BoundingSphere.fromVertices(positions as unknown as number[])
+
   const geometry = new Geometry({
     attributes: {
       position: new GeometryAttribute({
@@ -99,10 +102,10 @@ function createPlane(cesium: typeof import('cesium'), scale: number) {
         componentsPerAttribute: 2,
         values: textureCoordinates,
       }),
-    },
+    } as any,
     indices,
     primitiveType: PrimitiveType.TRIANGLES,
-    boundingSphere: cesium.BoundingSphere.fromVertices(positions),
+    boundingSphere,
   })
 
   return geometry
