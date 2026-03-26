@@ -12,8 +12,8 @@ export default defineConfig({
     vue(),
     vueDevTools(),
     cesium({
-      // Cesium 静态资源路径（不包含 base 前缀）
-      cesiumBaseUrl: './cesium/',
+      // Cesium 基础 URL，用于设置 CESIUM_BASE_URL
+      cesiumBaseUrl: 'cesium/',
     }),
   ],
   resolve: {
@@ -30,9 +30,5 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api\/shadertoy/, '/api/v1'),
       },
     },
-  },
-  build: {
-    // 确保资源路径正确
-    assetsDir: 'assets',
   },
 })
