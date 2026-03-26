@@ -1,0 +1,530 @@
+# ShaderToy Shader 移植到 Cesium 指南
+
+本文档详细介绍如何将 ShaderToy 上的 shader 效果移植到 Cesium 项目中。
+
+## 目录
+
+- [背景知识](#背景知识)
+- [ShaderToy 与 Cesium 的差异](#shadertoy-与-cesium-的差异)
+- [移植步骤详解](#移植步骤详解)
+- [核心代码实现](#核心代码实现)
+- [常见问题与解决方案](#常见问题与解决方案)
+- [进阶技巧](#进阶技巧)
+- [完整示例](#完整示例)
+
+---
+
+## 背景知识
+
+### ShaderToy 简介
+
+[ShaderToy](https://www.shadertoy.com/) 是一个在线 GLSL shader 分享平台，用户可以创建和分享各种视觉效果。ShaderToy 的 shader 特点：
+
+- **入口函数**: `mainImage(out vec4 fragColor, in vec2 fragCoord)`
+- **屏幕空间渲染**: 在 2D 画布上渲染
+- **内置 Uniform**: `iTime`, `iResolution`, `iMouse`, `iFrame` 等
+- **实时预览**: 支持实时编辑和预览
+
+### Cesium Material 系统
+
+Cesium 使用自定义的 Material 系统来渲染几何体：
+
+- **入口函数**: `czm_material czm_getMaterial(czm_materialInput materialInput)`
+- **3D 世界坐标**: 在三维地球环境中渲染
+- **内置变量**: `materialInput.st` (纹理坐标), `czm_getDefaultMaterial` 等
+- **Uniform 类型**: 使用 `Cartesian2`, `Cartesian3`, `Cartesian4` 等类型
+
+---
+
+## ShaderToy 与 Cesium 的差异
+
+| 特性 | ShaderToy | Cesium |
+|------|-----------|--------|
+| 渲染空间 | 2D 屏幕空间 | 3D 世界坐标 |
+| 入口函数 | `mainImage()` | `czm_getMaterial()` |
+| 时间变量 | `iTime` | 需自定义 `u_time` |
+| 分辨率 | `iResolution` (vec3) | 需自定义 `u_resolution` (vec2) |
+| 鼠标交互 | `iMouse` (vec4) | 需自定义 `u_mouse` (vec4) |
+| 纹理采样 | `texture()` | `czm_texture()` |
+| 坐标系统 | 像素坐标 `fragCoord` | UV 坐标 `materialInput.st` |
+
+---
+
+## 移植步骤详解
+
+### 步骤 1: 理解 ShaderToy Shader 结构
+
+典型的 ShaderToy shader 结构：
+
+```glsl
+// ShaderToy 示例
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    // 将像素坐标转换为 UV 坐标 (0-1)
+    vec2 uv = fragCoord / iResolution.xy;
+    
+    // 计算颜色
+    vec3 col = vec3(uv, 0.5 + 0.5 * sin(iTime));
+    
+    // 输出颜色
+    fragColor = vec4(col, 1.0);
+}
+```
+
+### 步骤 2: 创建 Cesium Material 包装器
+
+需要将 ShaderToy 的 `mainImage` 包装到 Cesium 的 `czm_getMaterial` 函数中：
+
+```glsl
+// Cesium Material 包装器
+uniform float u_time;
+uniform vec2 u_resolution;
+uniform vec4 u_mouse;
+
+// 定义 ShaderToy 兼容的宏
+#define iTime u_time
+#define iResolution u_resolution
+#define iMouse u_mouse
+#define texture(sampler, uv) czm_texture(sampler, uv)
+
+// 原始 ShaderToy 代码
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    // ... 原始代码 ...
+}
+
+// Cesium Material 入口
+czm_material czm_getMaterial(czm_materialInput materialInput) {
+    czm_material material = czm_getDefaultMaterial(materialInput);
+    
+    // 将 UV 坐标转换回像素坐标
+    vec2 fragCoord = materialInput.st * u_resolution;
+    vec4 fragColor;
+    
+    // 调用 ShaderToy 函数
+    mainImage(fragColor, fragCoord);
+    
+    // 设置 Cesium Material 属性
+    material.diffuse = fragColor.rgb;
+    material.alpha = fragColor.a;
+    
+    return material;
+}
+```
+
+### 步骤 3: 创建 Cesium Material 实例
+
+在 JavaScript/TypeScript 中创建 Material：
+
+```typescript
+import * as Cesium from 'cesium'
+
+const material = new Cesium.Material({
+  fabric: {
+    type: 'ShaderToy',
+    uniforms: {
+      u_time: 0,
+      u_resolution: new Cesium.Cartesian2(800, 600),
+      u_mouse: new Cesium.Cartesian4(0, 0, 0, 0),
+    },
+    source: fragmentShader, // 上一步生成的 shader 代码
+  },
+})
+```
+
+### 步骤 4: 应用到几何体
+
+```typescript
+// 创建几何体
+const geometryInstance = new Cesium.GeometryInstance({
+  geometry: new Cesium.SphereGeometry({ radius: 100000 }),
+  modelMatrix: Cesium.Transforms.eastNorthUpToFixedFrame(
+    Cesium.Cartesian3.fromDegrees(116.39, 39.90, 500000)
+  ),
+})
+
+// 创建 Primitive
+const primitive = new Cesium.Primitive({
+  geometryInstances: geometryInstance,
+  appearance: new Cesium.MaterialAppearance({
+    material: material,
+    faceForward: true,
+  }),
+})
+
+// 添加到场景
+viewer.scene.primitives.add(primitive)
+```
+
+### 步骤 5: 动画循环更新 Uniform
+
+```typescript
+let startTime = Date.now()
+
+function animate() {
+  if (primitive.appearance && primitive.appearance.material) {
+    const material = primitive.appearance.material
+    // 更新时间
+    material.uniforms.u_time = (Date.now() - startTime) / 1000
+    // 更新分辨率
+    material.uniforms.u_resolution.x = viewer.canvas.width
+    material.uniforms.u_resolution.y = viewer.canvas.height
+  }
+  requestAnimationFrame(animate)
+}
+animate()
+```
+
+---
+
+## 核心代码实现
+
+### Shader 转换器 (TypeScript)
+
+```typescript
+/**
+ * 将 ShaderToy 的 mainImage 函数转换为 Cesium 可用的 fragment shader
+ */
+export function convertShaderToyToCesium(shaderToyCode: string): string {
+  const fragmentShader = `
+// ShaderToy uniforms
+uniform float u_time;
+uniform vec2 u_resolution;
+uniform vec4 u_mouse;
+
+// ShaderToy 兼容宏
+#define iTime u_time
+#define iResolution u_resolution
+#define iMouse u_mouse
+#define texture(sampler, uv) czm_texture(sampler, uv)
+
+// 用户自定义函数
+${shaderToyCode}
+
+// Cesium Material 入口
+czm_material czm_getMaterial(czm_materialInput materialInput)
+{
+    czm_material material = czm_getDefaultMaterial(materialInput);
+    
+    vec2 fragCoord = materialInput.st * u_resolution;
+    vec4 fragColor;
+    
+    mainImage(fragColor, fragCoord);
+    
+    material.diffuse = fragColor.rgb;
+    material.alpha = fragColor.a;
+    
+    return material;
+}
+`
+  return fragmentShader
+}
+```
+
+### Material 创建器 (TypeScript)
+
+```typescript
+export function createCesiumMaterial(
+  cesium: typeof Cesium,
+  fragmentShader: string,
+  uniforms: {
+    iTime: number
+    iResolution: [number, number, number]
+    iMouse: [number, number, number, number]
+  }
+) {
+  const { Material, Cartesian2, Cartesian4 } = cesium
+
+  return new Material({
+    fabric: {
+      type: 'ShaderToy',
+      uniforms: {
+        u_time: uniforms.iTime,
+        u_resolution: new Cartesian2(uniforms.iResolution[0], uniforms.iResolution[1]),
+        u_mouse: new Cartesian4(
+          uniforms.iMouse[0],
+          uniforms.iMouse[1],
+          uniforms.iMouse[2],
+          uniforms.iMouse[3]
+        ),
+      },
+      source: fragmentShader,
+    },
+  })
+}
+```
+
+### Uniform 类型说明
+
+| ShaderToy Uniform | Cesium 类型 | 说明 |
+|-------------------|-------------|------|
+| `iTime` (float) | `number` | 时间（秒） |
+| `iResolution` (vec3) | `Cartesian2` | 只需要 x, y (宽高) |
+| `iMouse` (vec4) | `Cartesian4` | xy=当前位置, zw=点击位置 |
+
+**重要**: Cesium Material 的 uniform 不支持数组类型，必须使用 `Cartesian2`/`Cartesian4` 等类型。
+
+---
+
+## 常见问题与解决方案
+
+### 问题 1: Uniform 类型错误
+
+**错误信息**: `u_resolution has invalid type`
+
+**原因**: Cesium Material 不接受数组类型的 uniform
+
+**解决方案**:
+```typescript
+// ❌ 错误写法
+uniforms: {
+  u_resolution: [800, 600], // 不支持
+}
+
+// ✅ 正确写法
+uniforms: {
+  u_resolution: new Cesium.Cartesian2(800, 600),
+}
+```
+
+### 问题 2: 几何体不可见
+
+**原因**: 几何体位置或相机位置不正确
+
+**解决方案**:
+```typescript
+// 使用 ENU 坐标系放置几何体
+const position = Cesium.Cartesian3.fromDegrees(116.39, 39.90, 500000)
+const modelMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(position)
+
+// 相机定位
+viewer.camera.flyTo({
+  destination: Cesium.Cartesian3.fromDegrees(116.38, 39.89, 1000000),
+  orientation: {
+    heading: 0,
+    pitch: -Math.PI / 4,
+    roll: 0,
+  },
+})
+```
+
+### 问题 3: 鼠标交互不工作
+
+**原因**: 未正确处理鼠标事件或 uniform 更新
+
+**解决方案**:
+```typescript
+const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas)
+let mousePos = { x: 0, y: 0, z: 0, w: 0 }
+
+// 鼠标移动
+handler.setInputAction((movement) => {
+  if (movement?.position) {
+    mousePos.x = movement.position.x
+    mousePos.y = viewer.canvas.height - movement.position.y // Y 轴翻转
+  }
+}, Cesium.ScreenSpaceEventType.MOUSE_MOVE)
+
+// 鼠标点击
+handler.setInputAction(() => {
+  mousePos.z = mousePos.x
+  mousePos.w = mousePos.y
+}, Cesium.ScreenSpaceEventType.LEFT_DOWN)
+
+// 在动画循环中更新 uniform
+material.uniforms.u_mouse.x = mousePos.x
+material.uniforms.u_mouse.y = mousePos.y
+material.uniforms.u_mouse.z = mousePos.z
+material.uniforms.u_mouse.w = mousePos.w
+```
+
+### 问题 4: Shader 编译错误
+
+**常见原因**:
+1. 使用了 ShaderToy 特有函数（如 `textureLod`）
+2. 变量名与 Cesium 内置冲突
+3. GLSL 版本不兼容
+
+**解决方案**:
+- 检查 shader 代码，替换不兼容的函数
+- 避免使用 Cesium 保留字
+- 确保使用 GLSL ES 1.0 语法
+
+### 问题 5: 多通道渲染 (Multi-pass)
+
+ShaderToy 的多通道 shader（使用 `iChannel0`, `iChannel1` 等）需要特殊处理：
+
+```glsl
+// ShaderToy 多通道
+uniform sampler2D iChannel0; // 来自 Buffer A
+uniform sampler2D iChannel1; // 来自 Buffer B
+```
+
+**解决方案**: 需要使用 Cesium 的 `Framebuffer` 或多个 `Primitive` 实现多通道渲染，这超出了本文档范围。
+
+---
+
+## 进阶技巧
+
+### 技巧 1: 坐标系转换
+
+对于需要在 3D 世界中定位效果的 shader，需要将世界坐标转换为 UV：
+
+```glsl
+// 在 Cesium shader 中
+// p 是世界坐标
+vec2 uv = (p.xz - u_aabbMin.xz) / (u_aabbMax.xz - u_aabbMin.xz);
+```
+
+### 技巧 2: 水面效果移植
+
+参考 [从 ShaderToy 到 Cesium：如何移植「实时焦散水面」Shader](https://mp.weixin.qq.com/s/zSAzxCtOIVmPd__YmzIpOw)，水面效果需要：
+
+1. **程序化波浪**: 多层正弦波叠加
+2. **焦散效果**: 波浪高度转换为光斑
+3. **折射扰动**: UV 坐标偏移
+4. **动态法线**: 像素差分计算
+
+### 技巧 3: 从 ShaderToy API 获取代码
+
+```typescript
+// ShaderToy API
+const response = await fetch(
+  `https://www.shadertoy.com/api/v1/shaders/${shaderId}?key=${apiKey}`
+)
+const data = await response.json()
+const code = data.Shader.renderpass[0].code
+```
+
+注意：需要配置 CORS 代理或使用开发服务器代理。
+
+### 技巧 4: 性能优化
+
+1. **减少 uniform 更新频率**: 只在需要时更新
+2. **简化几何体**: 使用 LOD 或简化几何
+3. **使用 `asynchronous: false`**: 同步创建 Primitive 避免闪烁
+
+---
+
+## 完整示例
+
+### 最小可运行示例
+
+```typescript
+import * as Cesium from 'cesium'
+import 'cesium/Build/Cesium/Widgets/widgets.css'
+
+// 1. 初始化 Viewer
+const viewer = new Cesium.Viewer('cesiumContainer', {
+  baseLayerPicker: false,
+  geocoder: false,
+  homeButton: false,
+  sceneModePicker: false,
+  navigationHelpButton: false,
+  animation: false,
+  timeline: false,
+})
+
+// 2. ShaderToy 代码
+const shaderToyCode = `
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    vec2 uv = fragCoord / iResolution.xy;
+    vec3 col = 0.5 + 0.5 * cos(iTime + uv.xyx + vec3(0, 2, 4));
+    fragColor = vec4(col, 1.0);
+}
+`
+
+// 3. 转换为 Cesium shader
+const fragmentShader = `
+uniform float u_time;
+uniform vec2 u_resolution;
+#define iTime u_time
+#define iResolution u_resolution
+
+${shaderToyCode}
+
+czm_material czm_getMaterial(czm_materialInput materialInput) {
+    czm_material material = czm_getDefaultMaterial(materialInput);
+    vec2 fragCoord = materialInput.st * u_resolution;
+    vec4 fragColor;
+    mainImage(fragColor, fragCoord);
+    material.diffuse = fragColor.rgb;
+    material.alpha = fragColor.a;
+    return material;
+}
+`
+
+// 4. 创建 Material
+const material = new Cesium.Material({
+  fabric: {
+    type: 'ShaderToy',
+    uniforms: {
+      u_time: 0,
+      u_resolution: new Cesium.Cartesian2(800, 600),
+    },
+    source: fragmentShader,
+  },
+})
+
+// 5. 创建几何体
+const position = Cesium.Cartesian3.fromDegrees(116.39, 39.90, 500000)
+const modelMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(position)
+
+const primitive = viewer.scene.primitives.add(
+  new Cesium.Primitive({
+    geometryInstances: new Cesium.GeometryInstance({
+      geometry: new Cesium.SphereGeometry({ radius: 200000 }),
+      modelMatrix: modelMatrix,
+    }),
+    appearance: new Cesium.MaterialAppearance({
+      material: material,
+      faceForward: true,
+    }),
+    asynchronous: false,
+  })
+)
+
+// 6. 动画循环
+const startTime = Date.now()
+function animate() {
+  material.uniforms.u_time = (Date.now() - startTime) / 1000
+  material.uniforms.u_resolution.x = viewer.canvas.width
+  material.uniforms.u_resolution.y = viewer.canvas.height
+  requestAnimationFrame(animate)
+}
+animate()
+
+// 7. 相机定位
+viewer.camera.flyTo({
+  destination: Cesium.Cartesian3.fromDegrees(116.38, 39.89, 1000000),
+  orientation: {
+    heading: 0,
+    pitch: -Math.PI / 4,
+    roll: 0,
+  },
+})
+```
+
+---
+
+## 项目资源
+
+- [本项目源码](https://github.com/Sogrey/vue-cesium-shadertoy)
+- [ShaderToy 官网](https://www.shadertoy.com/)
+- [Cesium 官方文档](https://cesium.com/learn/)
+- [参考文章：从 ShaderToy 到 Cesium：如何移植「实时焦散水面」Shader](https://mp.weixin.qq.com/s/zSAzxCtOIVmPd__YmzIpOw)
+
+---
+
+## 总结
+
+移植 ShaderToy shader 到 Cesium 的核心要点：
+
+1. **包装入口函数**: 将 `mainImage` 包装到 `czm_getMaterial`
+2. **映射 Uniform**: `iTime` → `u_time`, `iResolution` → `Cartesian2`, `iMouse` → `Cartesian4`
+3. **坐标转换**: `materialInput.st` × `u_resolution` → `fragCoord`
+4. **动画更新**: 在 `requestAnimationFrame` 中更新时间 uniform
+5. **正确放置几何体**: 使用 ENU 坐标系和合理的相机位置
+
+---
+
+*文档版本: 1.0.0*  
+*最后更新: 2026-03-26*
