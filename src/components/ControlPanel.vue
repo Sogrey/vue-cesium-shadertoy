@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import ShaderEditor from './ShaderEditor.vue'
 import GeometrySelector from './GeometrySelector.vue'
-import type { GeometryType, ShaderPreset } from '@/types'
+import type { GeometryType, ShaderPreset, PassConfig, PassType } from '@/types'
 import { fetchShaderById, getApiKey, setApiKey, extractShaderId } from '@/utils/shadertoyApi'
 import { shaderPresets } from '@/shaders'
 
@@ -10,11 +10,126 @@ const emit = defineEmits<{
   (e: 'update:shaderCode', value: string): void
   (e: 'update:geometryType', value: GeometryType): void
   (e: 'update:isPlaying', value: boolean): void
+  (e: 'update:passes', value: PassConfig[]): void
 }>()
 
 const selectedGeometry = ref<GeometryType>('plane')
 const isPlaying = ref(true)
 const shaderCode = ref('')
+
+// 多通道管理
+const passes = ref<PassConfig[]>([])
+const activePassId = ref<string>('main')
+const showPassManager = ref(false)
+
+// 获取可用的通道类型
+const passTypes: PassType[] = ['BufferA', 'BufferB', 'BufferC', 'BufferD', 'Image']
+
+// 初始化默认通道
+function initDefaultPass(code: string) {
+  passes.value = [
+    {
+      id: 'main',
+      type: 'Image',
+      code: code,
+      inputs: [],
+    },
+  ]
+  activePassId.value = 'main'
+  emit('update:passes', passes.value)
+}
+
+// 添加新通道
+function addPass() {
+  const newId = `pass_${Date.now()}`
+  const newType = passes.value.length === 0 ? 'Image' : 'BufferA'
+  passes.value.push({
+    id: newId,
+    type: newType,
+    code: 'void mainImage(out vec4 O, vec2 I) {\n    O = vec4(0.0);\n}',
+    inputs: [],
+  })
+  activePassId.value = newId
+  emit('update:passes', passes.value)
+}
+
+// 删除通道
+function removePass(passId: string) {
+  if (passes.value.length <= 1) return // 至少保留一个通道
+  const index = passes.value.findIndex((p) => p.id === passId)
+  if (index > -1) {
+    passes.value.splice(index, 1)
+    if (activePassId.value === passId && passes.value[0]) {
+      activePassId.value = passes.value[0].id
+    }
+    emit('update:passes', passes.value)
+  }
+}
+
+// 更新通道代码
+function updatePassCode(passId: string, code: string) {
+  const pass = passes.value.find((p) => p.id === passId)
+  if (pass) {
+    pass.code = code
+    emit('update:passes', passes.value)
+    // 兼容单通道模式
+    if (passes.value.length === 1 && pass.type === 'Image') {
+      emit('update:shaderCode', code)
+    }
+  }
+}
+
+// 更新通道类型
+function updatePassType(passId: string, type: PassType) {
+  const pass = passes.value.find((p) => p.id === passId)
+  if (pass) {
+    pass.type = type
+    emit('update:passes', passes.value)
+  }
+}
+
+// 添加通道输入
+function addPassInput(passId: string) {
+  const pass = passes.value.find((p) => p.id === passId)
+  if (pass && pass.inputs.length < 4) {
+    // 找可用的源
+    const availableSources = passes.value
+      .filter((p) => p.id !== passId)
+      .map((p) => p.id)
+    const firstSource = availableSources[0]
+    if (firstSource) {
+      pass.inputs.push({
+        channel: pass.inputs.length,
+        source: firstSource,
+      })
+      emit('update:passes', passes.value)
+    }
+  }
+}
+
+// 删除通道输入
+function removePassInput(passId: string, channel: number) {
+  const pass = passes.value.find((p) => p.id === passId)
+  if (pass) {
+    pass.inputs = pass.inputs.filter((i) => i.channel !== channel)
+    emit('update:passes', passes.value)
+  }
+}
+
+// 更新通道输入源
+function updatePassInputSource(passId: string, channel: number, source: string) {
+  const pass = passes.value.find((p) => p.id === passId)
+  if (pass) {
+    const input = pass.inputs.find((i) => i.channel === channel)
+    if (input) {
+      input.source = source
+      emit('update:passes', passes.value)
+    }
+  }
+}
+
+// 当前激活的通道
+const activePass = computed(() => passes.value.find((p) => p.id === activePassId.value))
 
 // Cesium 代码生成相关
 const showCesiumCode = ref(false)
@@ -143,8 +258,20 @@ const currentPreset = ref(presets[0])
 
 function selectPreset(preset: ShaderPreset) {
   currentPreset.value = preset
-  shaderCode.value = preset.code
-  emit('update:shaderCode', preset.code)
+  // 多通道模式
+  if (preset.passes && preset.passes.length > 0) {
+    passes.value = [...preset.passes]
+    showPassManager.value = true
+    const firstPass = passes.value[0]
+    if (firstPass) {
+      activePassId.value = firstPass.id
+    }
+    emit('update:passes', passes.value)
+  } else if (preset.code) {
+    // 单通道模式
+    initDefaultPass(preset.code)
+    emit('update:shaderCode', preset.code)
+  }
 }
 
 function selectPresetById(id: string) {
@@ -161,6 +288,8 @@ function handleGeometryChange(type: GeometryType) {
 
 function handleCodeChange(code: string) {
   shaderCode.value = code
+  // 更新当前激活的通道
+  updatePassCode(activePassId.value, code)
   emit('update:shaderCode', code)
 }
 
@@ -209,11 +338,22 @@ async function importShader() {
 onMounted(() => {
   const firstPreset = presets[0]
   if (firstPreset) {
-    shaderCode.value = firstPreset.code
-    emit('update:shaderCode', firstPreset.code)
+    selectPreset(firstPreset)
   }
   emit('update:geometryType', selectedGeometry.value)
 })
+
+// 监听通道变化，更新 shaderCode（用于单通道兼容）
+watch(
+  () => passes.value,
+  (newPasses) => {
+    const firstPass = newPasses[0]
+    if (newPasses.length === 1 && firstPass?.type === 'Image') {
+      shaderCode.value = firstPass.code
+    }
+  },
+  { deep: true }
+)
 </script>
 
 <template>
@@ -292,11 +432,76 @@ onMounted(() => {
     <div class="section">
       <div class="section-header">
         <h2>📝 Shader 代码</h2>
-        <button class="play-btn" @click="togglePlay">
-          {{ isPlaying ? '⏸ 暂停' : '▶ 播放' }}
-        </button>
+        <div class="header-actions">
+          <button class="pass-manager-btn" @click="showPassManager = !showPassManager">
+            {{ showPassManager ? '▼' : '▶' }} 通道管理
+          </button>
+          <button class="play-btn" @click="togglePlay">
+            {{ isPlaying ? '⏸ 暂停' : '▶ 播放' }}
+          </button>
+        </div>
       </div>
-      <ShaderEditor :model-value="shaderCode" @update:model-value="handleCodeChange" />
+
+      <!-- 通道管理面板 -->
+      <div v-if="showPassManager" class="pass-manager">
+        <div class="pass-tabs">
+          <button
+            v-for="pass in passes"
+            :key="pass.id"
+            :class="['pass-tab', { active: activePassId === pass.id }]"
+            @click="activePassId = pass.id"
+          >
+            {{ pass.type }}
+            <span
+              v-if="passes.length > 1"
+              class="remove-pass"
+              @click.stop="removePass(pass.id)"
+            >
+              ✕
+            </span>
+          </button>
+          <button v-if="passes.length < 5" class="add-pass-btn" @click="addPass">
+            + 添加通道
+          </button>
+        </div>
+
+        <!-- 当前通道配置 -->
+        <div v-if="activePass" class="pass-config">
+          <div class="config-row">
+            <label>类型:</label>
+            <select :value="activePass.type" @change="updatePassType(activePass.id, ($event.target as HTMLSelectElement).value as PassType)">
+              <option v-for="type in passTypes" :key="type" :value="type">{{ type }}</option>
+            </select>
+          </div>
+
+          <!-- 输入配置 -->
+          <div v-if="activePass" class="inputs-config">
+            <div class="inputs-header">
+              <span>输入通道 (iChannel0-3)</span>
+              <button
+                v-if="activePass.inputs.length < 4"
+                class="add-input-btn"
+                @click="addPassInput(activePass.id)"
+              >
+                + 添加输入
+              </button>
+            </div>
+            <div v-for="input in activePass.inputs" :key="input.channel" class="input-row">
+              <span class="channel-label">iChannel{{ input.channel }}</span>
+              <select :value="input.source" @change="updatePassInputSource(activePass.id, input.channel, ($event.target as HTMLSelectElement).value)">
+                <option v-for="p in passes.filter(p => p.id !== activePass?.id)" :key="p.id" :value="p.id">
+                  {{ p.type }} ({{ p.id }})
+                </option>
+              </select>
+              <button class="remove-input-btn" @click="removePassInput(activePass.id, input.channel)">
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <ShaderEditor :model-value="activePass?.code || shaderCode" @update:model-value="handleCodeChange" />
       
       <!-- 生成 Cesium 代码 -->
       <div class="generate-section">
@@ -396,6 +601,186 @@ onMounted(() => {
 
 .section-header h2 {
   margin: 0;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.pass-manager-btn {
+  padding: 6px 12px;
+  border: 1px solid #6366f1;
+  background: transparent;
+  color: #818cf8;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.pass-manager-btn:hover {
+  background: #6366f1;
+  color: #fff;
+}
+
+/* 通道管理样式 */
+.pass-manager {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #0d1117;
+  border-radius: 6px;
+  border: 1px solid #0f3460;
+}
+
+.pass-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.pass-tab {
+  position: relative;
+  padding: 8px 16px;
+  border: 1px solid #0f3460;
+  background: #1a1a2e;
+  color: #8892b0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.pass-tab:hover {
+  border-color: #00d9ff;
+  color: #e0e0e0;
+}
+
+.pass-tab.active {
+  background: #00d9ff;
+  color: #16213e;
+  border-color: #00d9ff;
+}
+
+.remove-pass {
+  margin-left: 8px;
+  color: #ff6b6b;
+  font-size: 10px;
+}
+
+.remove-pass:hover {
+  color: #ff3333;
+}
+
+.add-pass-btn {
+  padding: 8px 12px;
+  border: 1px dashed #6366f1;
+  background: transparent;
+  color: #818cf8;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.add-pass-btn:hover {
+  background: #6366f1;
+  color: #fff;
+}
+
+.pass-config {
+  padding: 12px;
+  background: #161b22;
+  border-radius: 4px;
+}
+
+.config-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.config-row label {
+  font-size: 12px;
+  color: #8892b0;
+  min-width: 40px;
+}
+
+.config-row select {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid #0f3460;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.inputs-config {
+  border-top: 1px solid #0f3460;
+  padding-top: 12px;
+}
+
+.inputs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: #8892b0;
+}
+
+.add-input-btn {
+  padding: 4px 8px;
+  border: 1px solid #0f3460;
+  background: transparent;
+  color: #00d9ff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.add-input-btn:hover {
+  background: #0f3460;
+}
+
+.input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.channel-label {
+  font-size: 11px;
+  color: #64ffda;
+  min-width: 70px;
+  font-family: 'Fira Code', monospace;
+}
+
+.input-row select {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid #0f3460;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.remove-input-btn {
+  padding: 4px 6px;
+  border: none;
+  background: transparent;
+  color: #ff6b6b;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.remove-input-btn:hover {
+  color: #ff3333;
 }
 
 .preset-select {

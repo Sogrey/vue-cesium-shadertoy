@@ -19,6 +19,7 @@ import shaderArtIntroCode from './shaderArtIntro.glsl?raw'
 import zero7Code from './zero7.glsl?raw'
 import selfReflectCode from './selfReflect.glsl?raw'
 import rocailleCode from './rocaille.glsl?raw'
+import multipassTestBufferA from './multipassTest.glsl?raw'
 
 /**
  * 所有预设 Shader 列表
@@ -89,6 +90,36 @@ export const shaderPresets: ShaderPreset[] = [
     name: 'Rocaille',
     author: 'XorDev',
     code: rocailleCode,
+  },
+  {
+    id: 'multipassFeedback',
+    name: '多通道反馈（演示）',
+    author: 'Demo',
+    passes: [
+      {
+        id: 'bufferA',
+        type: 'BufferA',
+        code: multipassTestBufferA,
+        inputs: [
+          { channel: 0, source: 'self' }, // 自反馈
+        ],
+      },
+      {
+        id: 'image',
+        type: 'Image',
+        code: `
+// Image 通道 - 显示 Buffer A 的结果
+void mainImage(out vec4 O, vec2 I)
+{
+    vec2 uv = I / iResolution.xy;
+    O = texture(iChannel0, uv);
+}
+`,
+        inputs: [
+          { channel: 0, source: 'bufferA' }, // 引用 Buffer A
+        ],
+      },
+    ],
   },
 ]
 

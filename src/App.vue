@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import CesiumViewer from './components/CesiumViewer.vue'
 import ControlPanel from './components/ControlPanel.vue'
-import type { GeometryType } from './types'
+import type { GeometryType, PassConfig } from './types'
 
 const shaderCode = ref(`
 void mainImage( out vec4 fragColor, in vec2 fragCoord )
@@ -13,6 +13,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 `)
 const geometryType = ref<GeometryType>('plane')
 const isPlaying = ref(true)
+const passes = ref<PassConfig[]>([])
 </script>
 
 <template>
@@ -22,12 +23,14 @@ const isPlaying = ref(true)
       @update:shader-code="shaderCode = $event"
       @update:geometry-type="geometryType = $event"
       @update:is-playing="isPlaying = $event"
+      @update:passes="passes = $event"
     />
     <CesiumViewer
       class="cesium-viewer"
       :shader-code="shaderCode"
       :geometry-type="geometryType"
       :is-playing="isPlaying"
+      :passes="passes"
     />
   </div>
 </template>
