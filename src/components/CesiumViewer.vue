@@ -91,7 +91,18 @@ onUnmounted(() => {
 })
 
 // 监听几何体类型变化（需要自动更新）
-watch(() => props.geometryType, updatePrimitive)
+watch(
+  () => props.geometryType,
+  () => {
+    // geometryType 变化时，需要重新渲染
+    // 如果已有 shader，立即更新；否则等待 needRender 触发
+    if (props.passes && props.passes.length > 0) {
+      updateMultipassPrimitive()
+    } else if (props.shaderCode) {
+      updatePrimitive()
+    }
+  },
+)
 
 // 监听手动重渲染信号
 watch(
