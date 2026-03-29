@@ -246,6 +246,265 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     fragColor = vec4(col, 1.0);
 }`,
   },
+  {
+    id: 'windows95',
+    name: 'Windows 95',
+    author: 'ShaderToy',
+    code: `
+#define PI 3.1415926535897932384626433832795
+
+const float wave_amplitude = 0.076;
+const float period = 2.*PI;
+
+float wave_phase() {
+    return iTime;
+}
+
+float square(vec2 st) {
+    vec2 bl = step(vec2(0.), st);
+    vec2 tr = step(vec2(0.),1.0-st);
+    return bl.x * bl.y * tr.x * tr.y;
+}
+
+vec4 frame(vec2 st) {
+    float tushka = square(st*mat2((1./.48), 0., 0., (1./.69)));
+    
+    mat2 sector_mat = mat2(1./.16, 0., 0., 1./.22);
+    float sectors[4];
+    sectors[0] = square(st * sector_mat + (1./.16)*vec2(0.000,-0.280));
+    sectors[1] = square(st * sector_mat + (1./.16)*vec2(0.000,-0.060));
+    sectors[2] = square(st * sector_mat + (1./.16)*vec2(-0.240,-0.280));
+    sectors[3] = square(st * sector_mat + (1./.16)*vec2(-0.240,-0.060));
+    vec3 sector_colors[4];
+    sector_colors[0] = vec3(0.941, 0.439, 0.404) * sectors[0];
+    sector_colors[1] = vec3(0.435, 0.682, 0.843) * sectors[1];
+    sector_colors[2] = vec3(0.659, 0.808, 0.506) * sectors[2];
+    sector_colors[3] = vec3(0.996, 0.859, 0.114) * sectors[3];
+    
+    return vec4(vec3(sector_colors[0] + sector_colors[1] +
+                     sector_colors[2] + sector_colors[3]), tushka);
+}
+
+vec4 trail_piece(vec2 st, vec2 index, float scale) {
+    scale = index.x * 0.082 + 0.452;
+    
+    vec3 color;
+    if (index.y > 0.9 && index.y < 2.1 ) {
+        color = vec3(0.435, 0.682, 0.843);
+        scale *= .8;
+    } else if (index.y > 3.9 && index.y < 5.1) {
+        color = vec3(0.941, 0.439, 0.404);
+        scale *= .8;
+    } else {
+        color = vec3(0., 0., 0.);
+    }
+    
+    float scale1 = 1./scale;
+    float shift = - (1.-scale) / (2. * scale);
+    vec2 st2 = vec2(vec3(st, 1.) * mat3(scale1, 0., shift, 0., scale1, shift, 0., 0., 1.));
+    float mask = square(st2);
+
+    return vec4( color, mask );
+}
+
+vec4 trail(vec2 st) {
+    const float piece_height = 7. / .69;
+    const float piece_width = 6. / .54;
+  
+    st.x = 1.2760 * pow(st.x, 3.0) - 1.4624 * st.x*st.x + 1.4154 * st.x;
+    
+    float x_at_cell = floor(st.x*piece_width)/piece_width;
+    float x_at_cell_center = x_at_cell + 0.016;
+    float incline = cos(0.5*period + wave_phase()) * wave_amplitude;
+    
+    float offset = sin(x_at_cell_center*period + wave_phase())* wave_amplitude + 
+        incline*(st.x-x_at_cell)*5.452;
+    
+    float mask = step(offset, st.y) * (1.-step(.69+offset, st.y)) * step(0., st.x);
+    
+    vec2 cell_coord = vec2((st.x - x_at_cell) * piece_width,
+                           fract((st.y-offset) * piece_height));
+    vec2 cell_index = vec2(x_at_cell * piece_width, 
+                           floor((st.y-offset) * piece_height));
+    
+    vec4 pieces = trail_piece(cell_coord, cell_index, 0.752);
+    
+    return vec4(vec3(pieces), pieces.a * mask);
+}
+
+vec4 logo(vec2 st) {
+    if (st.x <= .54) {
+        return trail(st);
+    } else {
+        vec2 st2 = st + vec2(0., -sin(st.x*period + wave_phase())*wave_amplitude);
+        return frame(st2 + vec2(-.54, 0));
+    }
+}
+
+void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
+    vec2 st = fragCoord.xy/iResolution.xy;
+    st.x *= iResolution.x/iResolution.y;
+
+    st += vec2(.0);
+    st *= 1.472;
+    st += vec2(-0.7,-0.68);
+    float rot = PI*-0.124;
+    st *= mat2(cos(rot), sin(rot), -sin(rot), cos(rot));
+    vec3 color = vec3(1.);
+    
+    vec4 logo_ = logo(st);    
+    fragColor = mix(vec4(0.,.5,.5,1.000), logo_, logo_.a);
+}`,
+  },
+  {
+    id: 'loopingSpline',
+    name: '循环样条',
+    author: 'Sébastien Bérubé',
+    code: `
+const int POINT_COUNT = 8;
+struct CtrlPts
+{
+    vec2 p[POINT_COUNT];
+};
+vec2 PointArray(int i, CtrlPts ctrlPts)
+{
+    if(i==0 || i==POINT_COUNT  ) return ctrlPts.p[0];
+    if(i==1 || i==POINT_COUNT+1) return ctrlPts.p[1];
+    if(i==2 || i==POINT_COUNT+2) return ctrlPts.p[2];
+    if(i==3) return ctrlPts.p[3];
+    if(i==4) return ctrlPts.p[4];
+    if(i==5) return ctrlPts.p[5];
+    if(i==6) return ctrlPts.p[6];
+    if(i==7) return ctrlPts.p[7];
+    return vec2(0);
+}
+
+vec2 catmullRom(float fTime, CtrlPts ctrlPts)
+{
+    float t = fTime;
+    const float n = float(POINT_COUNT);
+    
+    int idxOffset = int(t*n);
+    vec2 p1 = PointArray(idxOffset,ctrlPts);
+    vec2 p2 = PointArray(idxOffset+1,ctrlPts);
+    vec2 p3 = PointArray(idxOffset+2,ctrlPts);
+    vec2 p4 = PointArray(idxOffset+3,ctrlPts);
+    
+    t *= n;
+    t = (t-float(int(t)));
+    
+    vec2 val = 0.5 * ((-p1 + 3.*p2 -3.*p3 + p4)*t*t*t
+               + (2.*p1 -5.*p2 + 4.*p3 - p4)*t*t
+               + (-p1+p3)*t
+               + 2.*p2);
+    return val;
+}
+
+float distanceToLineSeg(vec2 p, vec2 a, vec2 b)
+{
+    vec2 ap = p-a;
+    vec2 ab = b-a;
+    vec2 e = a+clamp(dot(ap,ab)/dot(ab,ab),0.0,1.0)*ab;
+    return length(p-e);
+}
+
+vec2 debugDistanceField(vec2 uv, CtrlPts ctrlPts)
+{
+    const float MAX_DIST = 10000.0;
+    float bestX = 0.0;
+    
+    const int iter = POINT_COUNT*2+1;
+    float primarySegLength = 1.0/float(iter-1);
+    vec2 pA = catmullRom(0., ctrlPts);
+    float minRoughDist = MAX_DIST;
+    float x = 0.0;
+    for(int i=0; i < iter; ++i)
+    {
+        vec2 pB = catmullRom(x, ctrlPts);
+        
+        float d = distanceToLineSeg(uv, pA, pB);
+        pA = pB;
+        if(d<minRoughDist)
+        {
+            bestX = x;
+            minRoughDist = d;
+        }
+         
+        x += primarySegLength;
+        x = min(x,0.99999);
+    }
+    
+    const int iter2 = 14;
+    x = max(bestX-1.25*primarySegLength,0.0);
+    float minDist = MAX_DIST;
+    pA = catmullRom(x, ctrlPts);
+    for(int i=0; i < iter2; ++i)
+    {
+        vec2 pB = catmullRom(x, ctrlPts);
+        float d = distanceToLineSeg(uv, pA, pB);
+        pA = pB;
+        
+        if(d<minDist)
+        {
+            bestX = x;
+            minDist = d;
+        }
+         
+        x += 1.5/float(iter2-1)*primarySegLength;
+        x = min(x,0.99999);
+    }
+    
+    return vec2(minDist,minRoughDist);
+}
+
+vec2 getUV(vec2 px)
+{
+    vec2 uv = px / iResolution.xx;
+    return uv;
+}
+
+void mainImage( out vec4 fragColor, in vec2 fragCoord )
+{
+    CtrlPts ctrlPts;
+    ctrlPts.p[0] = vec2(0.10,0.25);
+    ctrlPts.p[1] = vec2(0.2,0.1);
+    ctrlPts.p[2] = vec2(0.6,0.35);
+    ctrlPts.p[3] = vec2(0.4,0.1);
+    ctrlPts.p[4] = vec2(0.8,0.35);
+    ctrlPts.p[5] = vec2(0.6,0.55);
+    ctrlPts.p[6] = vec2(0.5,0.45);
+    ctrlPts.p[7] = vec2(0.3,0.49);
+    
+    if(iMouse.z > 0.1)
+        ctrlPts.p[2] = getUV(iMouse.xy);
+    vec2 uv = getUV(fragCoord.xy);
+    
+    float fTime = iTime*0.15;
+    vec2 pA = catmullRom(fract(fTime), ctrlPts);
+    vec2 pB = catmullRom(fract(fTime+0.02), ctrlPts);
+    
+    vec2 dSeg = debugDistanceField(uv, ctrlPts);
+    
+    vec3 c = vec3(dSeg.x*7.0+smoothstep(0.20,0.3,abs(fract(dSeg.x*20.0)-0.5)));
+    
+    c = mix(vec3(0,0.8,0.9),c,smoothstep(-0.005,0.0035,dSeg.y));
+    c = mix(vec3(1,0  ,0.0),c,smoothstep(0.0,0.0025,dSeg.x));
+    
+    float minDistP = 10000.0;
+    for(int i=0; i < POINT_COUNT; ++i)
+    {
+        vec2 ctrl_pt = PointArray(i,ctrlPts);
+        minDistP = min(length(uv-ctrl_pt),minDistP);
+    }
+    c = mix(vec3(0,0,1),c,smoothstep(0.008,0.011,minDistP));
+    
+    c = mix(vec3(0,0.7,0),c,smoothstep(0.008,0.011,length(uv-pA)));
+    c = mix(vec3(0,0.7,0),c,smoothstep(0.008,0.011,length(uv-pB)));
+    c = mix(vec3(1,1,1),c,smoothstep(0.004,0.006,length(uv-pB)));
+    
+    fragColor = vec4(c,1);
+}`,
+  },
 ]
 
 const currentPreset = ref(presets[0])
