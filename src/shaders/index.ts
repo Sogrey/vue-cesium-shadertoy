@@ -16,6 +16,8 @@ import windows95Code from './windows95.glsl?raw'
 import loopingSplineCode from './loopingSpline.glsl?raw'
 import renkliTaslarCode from './renkliTaslar.glsl?raw'
 import shaderArtIntroCode from './shaderArtIntro.glsl?raw'
+import zero7Code from './zero7.glsl?raw'
+import selfReflectCode from './selfReflect.glsl?raw'
 
 /**
  * 所有预设 Shader 列表
@@ -68,6 +70,18 @@ export const shaderPresets: ShaderPreset[] = [
     name: 'Shader 艺术入门',
     author: 'Kishimisu',
     code: shaderArtIntroCode,
+  },
+  {
+    id: 'zero7',
+    name: 'Zero7',
+    author: 'ShaderToy',
+    code: zero7Code,
+  },
+  {
+    id: 'selfReflect',
+    name: '自我反射',
+    author: 'ShaderToy',
+    code: selfReflectCode,
   },
 ]
 
