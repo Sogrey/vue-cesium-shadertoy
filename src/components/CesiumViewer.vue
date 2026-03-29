@@ -301,41 +301,44 @@ const geoPosition = {
   height: 500000, // 地面上方 500km
 }
 
-// 根据几何体类型获取相机距离配置
-function getCameraDistance(type: GeometryType): number {
-  const baseDistance = 600000 // 基础距离 600km
-
-  // 不同几何体的观看距离倍数
-  const multipliers: Record<GeometryType, number> = {
-    plane: 2.5,
-    sphere: 2.0,
-    cube: 2.2,
-    cylinder: 2.0,
-  }
-
-  return baseDistance * multipliers[type]
-}
-
-// 定位相机到几何体
+// 定位相机到几何体（使用包围球自动居中）
 function focusOnGeometry(type: GeometryType) {
   if (!viewer) return
 
-  const distance = getCameraDistance(type)
+  try {
+    // 计算几何体中心点（世界坐标）
+    const center = Cesium.Cartesian3.fromDegrees(
+      geoPosition.longitude,
+      geoPosition.latitude,
+      geoPosition.height,
+    )
 
-  // 相机位置：在几何体位置上方，并偏移一定距离
-  const cameraLongitude = geoPosition.longitude - (0.01 * distance) / 111000 // 约 1° = 111km
-  const cameraLatitude = geoPosition.latitude - (0.008 * distance) / 111000
-  const cameraHeight = geoPosition.height + distance * 0.8
+    // 根据几何体类型估算包围球半径
+    const baseScale = 200000 // 与 createGeometry 中的 scale 一致
+    const radius = type === 'plane' 
+      ? baseScale * (16 / 9) // 平面：对角线长度
+      : type === 'cube'
+        ? baseScale * Math.sqrt(3) * (16 / 9) // 立方体：对角线
+        : baseScale * 2 // 球体和圆柱体
 
-  viewer.camera.flyTo({
-    destination: Cesium.Cartesian3.fromDegrees(cameraLongitude, cameraLatitude, cameraHeight),
-    orientation: {
-      heading: Math.PI / 6,
-      pitch: type === 'plane' ? -Math.PI / 2 : -Math.PI / 3.5,
-      roll: 0,
-    },
-    duration: 1.5,
-  })
+    // 创建包围球
+    const boundingSphere = new Cesium.BoundingSphere(center, radius)
+
+    // 根据几何体类型调整视角
+    const heading = Cesium.Math.toRadians(30) // 朝向：东北方向
+    const pitch = type === 'plane' 
+      ? Cesium.Math.toRadians(-90) // 平面：正俯视
+      : Cesium.Math.toRadians(-35) // 其他：稍微俯视
+    const range = radius * 2.5 // 距离：包围球半径的 2.5 倍
+
+    // 使用 flyToBoundingSphere 精确定位
+    viewer.camera.flyToBoundingSphere(boundingSphere, {
+      offset: new Cesium.HeadingPitchRange(heading, pitch, range),
+      duration: 1.5,
+    })
+  } catch (error) {
+    console.error('定位几何体失败:', error)
+  }
 }
 
 function updatePrimitive(shaderOverride?: string) {
