@@ -14,6 +14,8 @@ import neonCode from './neon.glsl?raw'
 import wavesCode from './waves.glsl?raw'
 import windows95Code from './windows95.glsl?raw'
 import loopingSplineCode from './loopingSpline.glsl?raw'
+import renkliTaslarCode from './renkliTaslar.glsl?raw'
+import shaderArtIntroCode from './shaderArtIntro.glsl?raw'
 
 /**
  * 所有预设 Shader 列表
@@ -54,6 +56,18 @@ export const shaderPresets: ShaderPreset[] = [
     name: '循环样条',
     author: 'Sébastien Bérubé',
     code: loopingSplineCode,
+  },
+  {
+    id: 'renkliTaslar',
+    name: '彩色石头',
+    author: 'ShaderToy',
+    code: renkliTaslarCode,
+  },
+  {
+    id: 'shaderArtIntro',
+    name: 'Shader 艺术入门',
+    author: 'Kishimisu',
+    code: shaderArtIntroCode,
   },
 ]
 

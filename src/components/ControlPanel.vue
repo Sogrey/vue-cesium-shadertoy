@@ -147,6 +147,13 @@ function selectPreset(preset: ShaderPreset) {
   emit('update:shaderCode', preset.code)
 }
 
+function selectPresetById(id: string) {
+  const preset = presets.find((p) => p.id === id)
+  if (preset) {
+    selectPreset(preset)
+  }
+}
+
 function handleGeometryChange(type: GeometryType) {
   selectedGeometry.value = type
   emit('update:geometryType', type)
@@ -267,16 +274,19 @@ onMounted(() => {
 
     <div class="section">
       <h2>🎨 预设效果</h2>
-      <div class="preset-grid">
-        <button
-          v-for="preset in presets"
-          :key="preset.id"
-          :class="['preset-btn', { active: currentPreset?.id === preset.id }]"
-          @click="selectPreset(preset)"
+      <select 
+        class="preset-select" 
+        :value="currentPreset?.id" 
+        @change="selectPresetById(($event.target as HTMLSelectElement).value)"
+      >
+        <option 
+          v-for="preset in presets" 
+          :key="preset.id" 
+          :value="preset.id"
         >
-          {{ preset.name }}
-        </button>
-      </div>
+          {{ preset.name }} - {{ preset.author }}
+        </option>
+      </select>
     </div>
 
     <div class="section">
@@ -388,32 +398,34 @@ onMounted(() => {
   margin: 0;
 }
 
-.preset-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-}
-
-.preset-btn {
-  padding: 10px 12px;
+.preset-select {
+  width: 100%;
+  padding: 12px;
   border: 1px solid #0f3460;
   background: #1a1a2e;
   color: #e0e0e0;
   border-radius: 6px;
   cursor: pointer;
-  transition: all 0.2s;
   font-size: 13px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364ffda' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
 }
 
-.preset-btn:hover {
+.preset-select:focus {
+  outline: none;
   border-color: #00d9ff;
-  background: #16213e;
 }
 
-.preset-btn.active {
+.preset-select:hover {
   border-color: #00d9ff;
-  background: #0f3460;
-  color: #00d9ff;
+}
+
+.preset-select option {
+  background: #1a1a2e;
+  color: #e0e0e0;
+  padding: 8px;
 }
 
 .play-btn {

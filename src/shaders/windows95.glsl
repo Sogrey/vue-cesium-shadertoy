@@ -1,5 +1,9 @@
 // Windows 95 Logo 动画效果
-// Author: ShaderToy
+// url: https://www.shadertoy.com/view/XstXR2
+
+#ifdef GL_ES
+precision mediump float;
+#endif
 
 #define PI 3.1415926535897932384626433832795
 
@@ -11,8 +15,8 @@ float wave_phase() {
 }
 
 float square(vec2 st) {
-    vec2 bl = step(vec2(0.), st);
-    vec2 tr = step(vec2(0.),1.0-st);
+    vec2 bl = step(vec2(0.), st);       // bottom-left
+    vec2 tr = step(vec2(0.),1.0-st);   // top-right
     return bl.x * bl.y * tr.x * tr.y;
 }
 
@@ -58,9 +62,11 @@ vec4 trail_piece(vec2 st, vec2 index, float scale) {
 }
 
 vec4 trail(vec2 st) {
+    // actually 1/width, 1/height
     const float piece_height = 7. / .69;
     const float piece_width = 6. / .54;
   
+    // make distance between smaller segments slightly lower
     st.x = 1.2760 * pow(st.x, 3.0) - 1.4624 * st.x*st.x + 1.4154 * st.x;
     
     float x_at_cell = floor(st.x*piece_width)/piece_width;
