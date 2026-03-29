@@ -19,6 +19,7 @@ import shaderArtIntroCode from './shaderArtIntro.glsl?raw'
 import zero7Code from './zero7.glsl?raw'
 import selfReflectCode from './selfReflect.glsl?raw'
 import rocailleCode from './rocaille.glsl?raw'
+import clearlyABugCode from './clearlyABug.glsl?raw'
 import cosmicPearlBufferA from './cosmicPearl_bufferA.glsl?raw'
 import cosmicPearlImage from './cosmicPearl_image.glsl?raw'
 
@@ -62,6 +63,7 @@ export const shaderPresets: ShaderPreset[] = [
   createSinglePassPreset('zero7', 'Zero7', 'ShaderToy', zero7Code),
   createSinglePassPreset('selfReflect', '自我反射', 'ShaderToy', selfReflectCode),
   createSinglePassPreset('rocaille', 'Rocaille', 'XorDev', rocailleCode),
+  createSinglePassPreset('clearlyABug', 'Clearly a Bug', 'XorDev', clearlyABugCode),
 
   // 多通道预设
   {
