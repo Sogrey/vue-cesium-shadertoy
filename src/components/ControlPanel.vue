@@ -3,6 +3,7 @@ import { ref, onMounted, computed, watch, nextTick } from 'vue'
 import ShaderEditor from './ShaderEditor.vue'
 import GeometrySelector from './GeometrySelector.vue'
 import type { GeometryType, ShaderPreset, PassConfig, PassType } from '@/types'
+import { PASS_TYPES, getDefaultCodeForType } from '@/types'
 import { fetchShaderById, getApiKey, setApiKey, extractShaderId } from '@/utils/shadertoyApi'
 import { shaderPresets, isMultipassPreset } from '@/shaders'
 
@@ -22,67 +23,8 @@ const shaderCode = ref('')
 const passes = ref<PassConfig[]>([])
 const activePassId = ref<string>('main')
 
-// 获取可用的通道类型
-const passTypes: PassType[] = [
-  'Image',
-  'BufferA',
-  'BufferB',
-  'BufferC',
-  'BufferD',
-  'Common',
-  'Sound',
-  'CubemapA',
-]
-
 // 判断是否为多通道模式
 const isMultipassMode = computed(() => passes.value.length > 1 || (passes.value.length === 1 && passes.value[0]?.type !== 'Image'))
-
-// 根据通道类型获取默认代码模板
-function getDefaultCodeForType(type: PassType): string {
-  switch (type) {
-    case 'Sound':
-      return `vec2 mainSound( int samp, float time )
-{
-    // A 440 Hz wave that attenuates quickly overt time
-    return vec2( sin(6.2831*440.0*time)*exp(-3.0*time) );
-}`
-    case 'CubemapA':
-      return `void mainCubemap( out vec4 fragColor, in vec2 fragCoord, in vec3 rayOri, in vec3 rayDir )
-{
-    // Ray direction as color
-    vec3 col = 0.5 + 0.5*rayDir;
-
-    // Output to cubemap
-    fragColor = vec4(col,1.0);
-}`
-    case 'BufferA':
-    case 'BufferB':
-    case 'BufferC':
-    case 'BufferD':
-      return `void mainImage( out vec4 fragColor, in vec2 fragCoord )
-{
-    fragColor = vec4(0.0,0.0,1.0,1.0);
-}`
-    case 'Common':
-      return `vec4 someFunction( vec4 a, float b )
-{
-    return a+b;
-}`
-    case 'Image':
-    default:
-      return `void mainImage( out vec4 fragColor, in vec2 fragCoord )
-{
-    // Normalized pixel coordinates (from 0 to 1)
-    vec2 uv = fragCoord / iResolution.xy;
-
-    // Time varying pixel color
-    vec3 col = 0.5 + 0.5*cos(iTime+uv.xyx+vec3(0,2,4));
-
-    // Output to screen
-    fragColor = vec4(col,1.0);
-}`
-  }
-}
 
 // 初始化默认通道
 function initDefaultPass(code: string) {
@@ -545,7 +487,7 @@ watch(
             @change="updatePassType(activePass.id, ($event.target as HTMLSelectElement).value as PassType)"
             class="type-select"
           >
-            <option v-for="type in passTypes" :key="type" :value="type">{{ type }}</option>
+            <option v-for="type in PASS_TYPES" :key="type" :value="type">{{ type }}</option>
           </select>
           
           <!-- 输入配置 -->

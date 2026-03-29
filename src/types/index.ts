@@ -28,6 +28,70 @@ export type PassType =
   | 'Sound'
   | 'CubemapA'
 
+/**
+ * 所有支持的通道类型常量数组
+ */
+export const PASS_TYPES: PassType[] = [
+  'Image',
+  'BufferA',
+  'BufferB',
+  'BufferC',
+  'BufferD',
+  'Common',
+  'Sound',
+  'CubemapA',
+]
+
+/**
+ * 根据通道类型获取默认代码模板
+ * 对应 ShaderToy 各通道的默认函数签名
+ */
+export function getDefaultCodeForType(type: PassType): string {
+  switch (type) {
+    case 'Sound':
+      return `vec2 mainSound( int samp, float time )
+{
+    // A 440 Hz wave that attenuates quickly overt time
+    return vec2( sin(6.2831*440.0*time)*exp(-3.0*time) );
+}`
+    case 'CubemapA':
+      return `void mainCubemap( out vec4 fragColor, in vec2 fragCoord, in vec3 rayOri, in vec3 rayDir )
+{
+    // Ray direction as color
+    vec3 col = 0.5 + 0.5*rayDir;
+
+    // Output to cubemap
+    fragColor = vec4(col,1.0);
+}`
+    case 'BufferA':
+    case 'BufferB':
+    case 'BufferC':
+    case 'BufferD':
+      return `void mainImage( out vec4 fragColor, in vec2 fragCoord )
+{
+    fragColor = vec4(0.0,0.0,1.0,1.0);
+}`
+    case 'Common':
+      return `vec4 someFunction( vec4 a, float b )
+{
+    return a+b;
+}`
+    case 'Image':
+    default:
+      return `void mainImage( out vec4 fragColor, in vec2 fragCoord )
+{
+    // Normalized pixel coordinates (from 0 to 1)
+    vec2 uv = fragCoord / iResolution.xy;
+
+    // Time varying pixel color
+    vec3 col = 0.5 + 0.5*cos(iTime+uv.xyx+vec3(0,2,4));
+
+    // Output to screen
+    fragColor = vec4(col,1.0);
+}`
+  }
+}
+
 // 通道输入源
 export interface PassInput {
   channel: number // 0-3 对应 iChannel0-iChannel3
