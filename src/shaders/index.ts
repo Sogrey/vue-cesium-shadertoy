@@ -18,6 +18,7 @@ import renkliTaslarCode from './renkliTaslar.glsl?raw'
 import shaderArtIntroCode from './shaderArtIntro.glsl?raw'
 import zero7Code from './zero7.glsl?raw'
 import selfReflectCode from './selfReflect.glsl?raw'
+import rocailleCode from './rocaille.glsl?raw'
 
 /**
  * 所有预设 Shader 列表
@@ -82,6 +83,12 @@ export const shaderPresets: ShaderPreset[] = [
     name: '自我反射',
     author: 'ShaderToy',
     code: selfReflectCode,
+  },
+  {
+    id: 'rocaille',
+    name: 'Rocaille',
+    author: 'XorDev',
+    code: rocailleCode,
   },
 ]
 
