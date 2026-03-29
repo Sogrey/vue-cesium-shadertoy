@@ -74,25 +74,28 @@ export function createGeometry(
 }
 
 /**
- * 创建平面
+ * 创建平面（16:9 比例，匹配 ShaderToy 标准画布）
  */
 function createPlane(cesium: typeof import('cesium'), scale: number) {
   const { Geometry, GeometryAttribute, ComponentDatatype, PrimitiveType, BoundingSphere } = cesium
 
-  const halfSize = scale
+  // 16:9 比例：宽度是高度的 16/9 倍
+  const halfHeight = scale
+  const halfWidth = scale * (16 / 9)
+
   const positions = new Float64Array([
-    -halfSize,
+    -halfWidth,
     0,
-    -halfSize,
-    halfSize,
+    -halfHeight,
+    halfWidth,
     0,
-    -halfSize,
-    halfSize,
+    -halfHeight,
+    halfWidth,
     0,
-    halfSize,
-    -halfSize,
+    halfHeight,
+    -halfWidth,
     0,
-    halfSize,
+    halfHeight,
   ])
 
   const textureCoordinates = new Float32Array([0, 0, 1, 0, 1, 1, 0, 1])
@@ -132,14 +135,20 @@ function createSphere(cesium: typeof import('cesium'), scale: number) {
 }
 
 /**
- * 创建立方体
+ * 创建立方体（每个面 16:9 比例）
  */
 function createCube(cesium: typeof import('cesium'), scale: number) {
   const { BoxGeometry } = cesium
+
+  // 16:9 比例：宽度是高度的 16/9 倍，深度与高度相同
+  const halfHeight = scale
+  const halfWidth = scale * (16 / 9)
+  const halfDepth = scale
+
   return BoxGeometry.createGeometry(
     new BoxGeometry({
-      minimum: new cesium.Cartesian3(-scale, -scale, -scale),
-      maximum: new cesium.Cartesian3(scale, scale, scale),
+      minimum: new cesium.Cartesian3(-halfWidth, -halfHeight, -halfDepth),
+      maximum: new cesium.Cartesian3(halfWidth, halfHeight, halfDepth),
     }),
   )
 }

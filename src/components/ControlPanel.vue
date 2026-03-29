@@ -22,9 +22,24 @@ const shaderCode = ref('')
 // 多通道管理
 const passes = ref<PassConfig[]>([])
 const activePassId = ref<string>('main')
+const commonCode = ref<string>('') // Common 代码（独立管理）
 
 // 判断是否为多通道模式
 const isMultipassMode = computed(() => passes.value.length > 1 || (passes.value.length === 1 && passes.value[0]?.type !== 'Image'))
+
+// 判断是否有 Common 代码
+const hasCommonCode = computed(() => commonCode.value.trim().length > 0)
+
+// 计算实际渲染时使用的 passes（包含 Common 合并）
+const renderPasses = computed(() => {
+  if (!hasCommonCode.value) return passes.value
+
+  // 将 Common 代码合并到每个 pass
+  return passes.value.map(pass => ({
+    ...pass,
+    code: commonCode.value + '\n' + pass.code,
+  }))
+})
 
 // 初始化默认通道
 function initDefaultPass(code: string) {
@@ -128,17 +143,20 @@ function updatePassInputSource(passId: string, channel: number, source: string) 
 
 // 应用更改并触发重渲染
 async function applyChanges() {
-  // 更新 passes
-  emit('update:passes', [...passes.value])
-  
+  // 更新 passes（使用合并后的 renderPasses）
+  emit('update:passes', [...renderPasses.value])
+
   // 单通道模式：更新 shaderCode
   if (passes.value.length === 1 && passes.value[0]?.type === 'Image') {
-    emit('update:shaderCode', passes.value[0].code)
+    const finalCode = hasCommonCode.value
+      ? commonCode.value + '\n' + passes.value[0].code
+      : passes.value[0].code
+    emit('update:shaderCode', finalCode)
   }
-  
+
   // 等待 Vue 更新完成
   await nextTick()
-  
+
   // 触发重渲染
   emit('render')
 }
@@ -273,13 +291,19 @@ const currentPreset = ref(presets[0])
 
 function selectPreset(preset: ShaderPreset) {
   currentPreset.value = preset
+  // 加载 Common 代码
+  commonCode.value = preset.common || ''
+
   // 多通道模式
   if (preset.passes && preset.passes.length > 0) {
     passes.value = preset.passes.map(p => ({ ...p }))
     const firstPass = passes.value[0]
     if (firstPass) {
       activePassId.value = firstPass.id
-      shaderCode.value = firstPass.code
+      // 显示时包含 Common（如果有）
+      shaderCode.value = hasCommonCode.value
+        ? commonCode.value + '\n' + firstPass.code
+        : firstPass.code
     }
   } else if (preset.code) {
     // 单通道模式
@@ -304,6 +328,13 @@ function handleGeometryChange(type: GeometryType) {
 
 function handleCodeChange(code: string) {
   shaderCode.value = code
+
+  // Common 标签页：更新 commonCode
+  if (activePassId.value === 'common') {
+    commonCode.value = code
+    return
+  }
+
   // 更新当前激活的通道（仅本地更新，不触发重渲染）
   updatePassCode(activePassId.value, code)
 }
@@ -460,6 +491,15 @@ watch(
       <!-- 多通道 Tabs（类似 ShaderToy） -->
       <div class="pass-tabs-container">
         <div class="pass-tabs">
+          <!-- Common 标签页（如果有） -->
+          <button
+            v-if="hasCommonCode"
+            :class="['pass-tab common-tab', { active: activePassId === 'common' }]"
+            @click="activePassId = 'common'"
+          >
+            Common
+          </button>
+
           <button
             v-for="pass in passes"
             :key="pass.id"
@@ -480,16 +520,16 @@ watch(
           </button>
         </div>
         
-        <!-- 当前通道配置（仅多通道时显示） -->
-        <div v-if="activePass && isMultipassMode" class="pass-config-inline">
-          <select 
-            :value="activePass.type" 
+        <!-- 当前通道配置（仅多通道时显示，Common 不显示配置） -->
+        <div v-if="activePass && isMultipassMode && activePassId !== 'common'" class="pass-config-inline">
+          <select
+            :value="activePass.type"
             @change="updatePassType(activePass.id, ($event.target as HTMLSelectElement).value as PassType)"
             class="type-select"
           >
-            <option v-for="type in PASS_TYPES" :key="type" :value="type">{{ type }}</option>
+            <option v-for="type in PASS_TYPES.filter(t => t !== 'Common')" :key="type" :value="type">{{ type }}</option>
           </select>
-          
+
           <!-- 输入配置 -->
           <div class="inputs-compact">
             <button
@@ -501,8 +541,8 @@ watch(
             </button>
             <div v-for="input in activePass.inputs" :key="input.channel" class="input-badge">
               <span>C{{ input.channel }}:</span>
-              <select 
-                :value="input.source" 
+              <select
+                :value="input.source"
                 @change="updatePassInputSource(activePass.id, input.channel, ($event.target as HTMLSelectElement).value)"
                 class="source-select"
               >
@@ -515,9 +555,17 @@ watch(
             </div>
           </div>
         </div>
+
+        <!-- Common 说明 -->
+        <div v-if="activePassId === 'common'" class="common-hint">
+          💡 Common 是公共代码库，会自动合并到其他通道。定义的函数可被所有通道调用。
+        </div>
       </div>
 
-      <ShaderEditor :model-value="activePass?.code || shaderCode" @update:model-value="handleCodeChange" />
+      <ShaderEditor
+        :model-value="activePassId === 'common' ? commonCode : (activePass?.code || shaderCode)"
+        @update:model-value="handleCodeChange"
+      />
       
       <!-- 生成 Cesium 代码 -->
       <div class="generate-section">
@@ -699,6 +747,16 @@ watch(
   border-bottom: 2px solid #00d9ff;
 }
 
+.common-tab {
+  font-style: italic;
+  color: #ffd700 !important;
+}
+
+.common-tab.active {
+  color: #ffd700 !important;
+  border-bottom: 2px solid #ffd700 !important;
+}
+
 .remove-pass {
   margin-left: 6px;
   color: #ff6b6b;
@@ -800,6 +858,14 @@ watch(
 
 .remove-input-small:hover {
   color: #ff3333;
+}
+
+.common-hint {
+  padding: 8px 12px;
+  background: #1a1a2e;
+  border-bottom: 1px solid #0f3460;
+  font-size: 11px;
+  color: #ffd700;
 }
 
 /* 播放按钮 */

@@ -113,6 +113,7 @@ export interface ShaderPreset {
   author?: string
   code?: string // 单通道模式（向后兼容）
   passes?: PassConfig[] // 多通道模式
+  common?: string // Common 代码（独立存储，不作为 Pass，渲染时合并到其他通道）
 }
 
 // 几何体配置

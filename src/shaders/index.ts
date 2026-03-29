@@ -27,18 +27,16 @@ import metaShaderBufferARaw from './metaShader_bufferA.glsl?raw'
 import metaShaderImageRaw from './metaShader_image.glsl?raw'
 
 /**
- * MetaShader: 合并 Common 代码到各通道
+ * MetaShader: Common 代码独立存储
  *
  * 重要：Common 不是独立的 Pass，而是公共代码库
  * ShaderToy 中 Common 定义的函数需要被其他通道使用
  *
  * 处理方式：
- * 1. 将 Common 代码合并到每个使用它的通道
- * 2. BufferA 和 Image 都包含 Common 的所有函数
- * 3. 因此 passes 数组中只有 BufferA 和 Image 两个 Pass
+ * 1. Common 代码存储在 preset.common 字段中
+ * 2. 前端显示时作为独立的 Common 标签页
+ * 3. 渲染时自动合并到 BufferA 和 Image
  */
-const metaShaderBufferA = metaShaderCommon + '\n' + metaShaderBufferARaw
-const metaShaderImage = metaShaderCommon + '\n' + metaShaderImageRaw
 
 /**
  * 辅助函数：创建单通道预设
@@ -145,11 +143,12 @@ void mainImage(out vec4 O, vec2 I)
     id: 'metaShader',
     name: 'MetaShader',
     author: 'Patrick JAILLET',
+    common: metaShaderCommon, // Common 代码单独存储
     passes: [
       {
         id: 'bufferA',
         type: 'BufferA',
-        code: metaShaderBufferA,
+        code: metaShaderBufferARaw, // 只包含 BufferA 的代码
         inputs: [
           { channel: 0, source: 'self' }, // 自反馈：读取上一帧
         ],
@@ -157,7 +156,7 @@ void mainImage(out vec4 O, vec2 I)
       {
         id: 'image',
         type: 'Image',
-        code: metaShaderImage,
+        code: metaShaderImageRaw, // 只包含 Image 的代码
         inputs: [
           { channel: 0, source: 'bufferA' }, // 读取 BufferA 的输出
         ],
