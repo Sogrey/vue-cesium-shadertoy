@@ -563,8 +563,18 @@ watch(
       <h3>💡 使用提示</h3>
       <ul>
         <li>ShaderToy 使用 mainImage(out vec4, in vec2) 函数</li>
-        <li>可用变量: iTime, iResolution, iMouse</li>
+        <li>可用变量: iTime, iResolution, iMouse, iFrame</li>
         <li>鼠标在画布上移动可交互</li>
+        <li>
+          <strong>多通道渲染：</strong>
+          <ul style="margin-top: 6px; padding-left: 20px;">
+            <li>使用 <code style="color: #00d9ff;">iChannel0-3</code> 访问纹理通道</li>
+            <li>支持 Buffer A/B/C/D 通道链</li>
+            <li>支持自反馈（Buffer 读取自己的上一帧）</li>
+            <li>预设列表中 [多通道] 标识表示多通道 Shader</li>
+          </ul>
+        </li>
+        <li>WebGL 2.0: 使用 <code style="color: #00d9ff;">texture()</code> 而非 <code>texture2D()</code></li>
       </ul>
     </div>
   </div>
