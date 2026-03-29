@@ -14,6 +14,9 @@
 - **🎬 动画控制** - 播放/暂停时间动画
 - **🖱️ 鼠标交互** - 支持 ShaderToy 的 `iMouse` uniform
 - **🎯 自动定位** - 切换几何体自动调整相机视角
+- **🔄 多通道渲染** - 支持多通道/多缓冲区 Shader（如反馈循环、缓冲区链等）
+- **🖼️ 纹理支持** - 支持 `iChannel0`、`iChannel1` 等纹理输入
+- **⚡ WebGL 2.0** - 完全兼容 WebGL 2.0（`texture()`, `texelFetch()` 等）
 
 ## 快速开始
 
@@ -81,6 +84,8 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 | `iTime` | float | 时间（秒） |
 | `iResolution` | vec2 | 画布分辨率 |
 | `iMouse` | vec4 | 鼠标位置 (x, y, clickX, clickY) |
+| `iChannel0-3` | sampler2D | 纹理通道（多通道渲染使用） |
+| `iFrame` | int | 帧计数器（多通道渲染使用） |
 
 ## 项目结构
 
@@ -94,7 +99,11 @@ src/
 ├── utils/
 │   ├── shadertoyApi.ts       # ShaderToy API 工具
 │   ├── shaderConverter.ts    # Shader 代码转换器
+│   ├── multipassRenderer.ts  # 多通道渲染器
 │   └── geometryFactory.ts    # 几何体创建工厂
+├── shaders/
+│   ├── index.ts              # Shader 预设定义
+│   └── *.glsl                # Shader 源文件
 ├── types/
 │   └── index.ts              # TypeScript 类型定义
 ├── App.vue                   # 主应用

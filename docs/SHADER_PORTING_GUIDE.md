@@ -45,8 +45,10 @@ Cesium 使用自定义的 Material 系统来渲染几何体：
 | 时间变量 | `iTime` | 需自定义 `u_time` |
 | 分辨率 | `iResolution` (vec3) | 需自定义 `u_resolution` (vec2) |
 | 鼠标交互 | `iMouse` (vec4) | 需自定义 `u_mouse` (vec4) |
-| 纹理采样 | `texture()` | `czm_texture()` |
+| 纹理采样 | `texture()` | `texture()` (WebGL 2.0) |
 | 坐标系统 | 像素坐标 `fragCoord` | UV 坐标 `materialInput.st` |
+| WebGL 版本 | WebGL 2.0 | WebGL 2.0 |
+| 多通道 | Buffer A/B/C/D | FBO 多通道渲染 |
 
 ---
 
@@ -84,7 +86,6 @@ uniform vec4 u_mouse;
 #define iTime u_time
 #define iResolution u_resolution
 #define iMouse u_mouse
-#define texture(sampler, uv) czm_texture(sampler, uv)
 
 // 原始 ShaderToy 代码
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
@@ -95,8 +96,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 czm_material czm_getMaterial(czm_materialInput materialInput) {
     czm_material material = czm_getDefaultMaterial(materialInput);
     
-    // 将 UV 坐标转换回像素坐标
-    vec2 fragCoord = materialInput.st * u_resolution;
+    // 将 UV 坐标转换为像素坐标（注意：加上 0.5 以获取像素中心）
+    vec2 fragCoord = materialInput.st * u_resolution + 0.5;
     vec4 fragColor;
     
     // 调用 ShaderToy 函数
@@ -194,7 +195,6 @@ uniform vec4 u_mouse;
 #define iTime u_time
 #define iResolution u_resolution
 #define iMouse u_mouse
-#define texture(sampler, uv) czm_texture(sampler, uv)
 
 // 用户自定义函数
 ${shaderToyCode}
@@ -204,7 +204,8 @@ czm_material czm_getMaterial(czm_materialInput materialInput)
 {
     czm_material material = czm_getDefaultMaterial(materialInput);
     
-    vec2 fragCoord = materialInput.st * u_resolution;
+    // 注意：fragCoord 需要加上 0.5 以获取像素中心坐标
+    vec2 fragCoord = materialInput.st * u_resolution + 0.5;
     vec4 fragColor;
     
     mainImage(fragColor, fragCoord);
@@ -339,26 +340,70 @@ material.uniforms.u_mouse.w = mousePos.w
 ### 问题 4: Shader 编译错误
 
 **常见原因**:
-1. 使用了 ShaderToy 特有函数（如 `textureLod`）
+1. 使用了 WebGL 1.0 语法（如 `texture2D`）
 2. 变量名与 Cesium 内置冲突
-3. GLSL 版本不兼容
+3. Uniform 名称冲突（Cesium 会添加后缀）
 
 **解决方案**:
-- 检查 shader 代码，替换不兼容的函数
-- 避免使用 Cesium 保留字
-- 确保使用 GLSL ES 1.0 语法
+- Cesium 使用 WebGL 2.0，请使用 `texture()` 而非 `texture2D()`
+- 支持 `texelFetch()` 等 WebGL 2.0 函数
+- 避免使用 Cesium 保留字（如 `u_frame`）
+- 使用唯一的 Material type 名称避免缓存冲突
 
 ### 问题 5: 多通道渲染 (Multi-pass)
 
-ShaderToy 的多通道 shader（使用 `iChannel0`, `iChannel1` 等）需要特殊处理：
+ShaderToy 的多通道 shader（使用 `iChannel0`, `iChannel1` 等）**现已支持**！
 
-```glsl
-// ShaderToy 多通道
-uniform sampler2D iChannel0; // 来自 Buffer A
-uniform sampler2D iChannel1; // 来自 Buffer B
+**实现方式**:
+1. 使用 `MultipassRenderer` 类管理多个 FBO
+2. 每个 Buffer 通道在独立的 Framebuffer 中渲染
+3. Image 通道读取 Buffer 结果并渲染最终效果
+
+```typescript
+// 多通道预设格式
+const multipassPreset: ShaderPreset = {
+  id: 'multipass-demo',
+  name: '多通道示例',
+  passes: [
+    {
+      type: 'buffer',
+      name: 'BufferA',
+      code: bufferACode,
+      inputs: [], // 可引用其他 buffer
+    },
+    {
+      type: 'image',
+      name: 'Image',
+      code: imageCode,
+      inputs: [
+        { channel: 0, buffer: 'BufferA' }, // 引用 BufferA
+      ],
+    },
+  ],
+}
 ```
 
-**解决方案**: 需要使用 Cesium 的 `Framebuffer` 或多个 `Primitive` 实现多通道渲染，这超出了本文档范围。
+**注意事项**:
+- Buffer 名称必须唯一
+- 避免循环引用
+- 切换预设时需要销毁并重建 MultipassRenderer
+
+### 问题 6: fragCoord 坐标偏差
+
+**现象**: Shader 渲染结果与 ShaderToy 原始效果有微小偏差
+
+**原因**: `fragCoord` 应该是像素中心坐标
+
+**解决方案**:
+```glsl
+// ❌ 错误写法
+vec2 fragCoord = materialInput.st * u_resolution;
+
+// ✅ 正确写法（加上 0.5）
+vec2 fragCoord = materialInput.st * u_resolution + 0.5;
+```
+
+这确保 `fragCoord` 位于像素中心，与 ShaderToy 的行为一致。
 
 ---
 
@@ -443,7 +488,8 @@ ${shaderToyCode}
 
 czm_material czm_getMaterial(czm_materialInput materialInput) {
     czm_material material = czm_getDefaultMaterial(materialInput);
-    vec2 fragCoord = materialInput.st * u_resolution;
+    // fragCoord 必须加上 0.5 以获取像素中心坐标
+    vec2 fragCoord = materialInput.st * u_resolution + 0.5;
     vec4 fragColor;
     mainImage(fragColor, fragCoord);
     material.diffuse = fragColor.rgb;
@@ -520,11 +566,13 @@ viewer.camera.flyTo({
 
 1. **包装入口函数**: 将 `mainImage` 包装到 `czm_getMaterial`
 2. **映射 Uniform**: `iTime` → `u_time`, `iResolution` → `Cartesian2`, `iMouse` → `Cartesian4`
-3. **坐标转换**: `materialInput.st` × `u_resolution` → `fragCoord`
-4. **动画更新**: 在 `requestAnimationFrame` 中更新时间 uniform
-5. **正确放置几何体**: 使用 ENU 坐标系和合理的相机位置
+3. **坐标转换**: `materialInput.st` × `u_resolution` + 0.5 → `fragCoord`（像素中心）
+4. **WebGL 2.0**: 使用 `texture()` 而非 `texture2D()`，支持 `texelFetch()`
+5. **动画更新**: 在 `requestAnimationFrame` 中更新时间 uniform
+6. **多通道支持**: 使用 `MultipassRenderer` 实现 Buffer 链
+7. **正确放置几何体**: 使用 ENU 坐标系和合理的相机位置
 
 ---
 
-*文档版本: 1.0.0*  
-*最后更新: 2026-03-26*
+*文档版本: 1.1.0*  
+*最后更新: 2026-03-30*

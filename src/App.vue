@@ -4,16 +4,17 @@ import CesiumViewer from './components/CesiumViewer.vue'
 import ControlPanel from './components/ControlPanel.vue'
 import type { GeometryType, PassConfig } from './types'
 
-const shaderCode = ref(`
-void mainImage( out vec4 fragColor, in vec2 fragCoord )
-{
-    vec2 uv = fragCoord / iResolution.xy;
-    fragColor = vec4(uv.x, uv.y, 0.5 + 0.5 * sin(iTime), 1.0);
-}
-`)
+// 初始为空，等待 ControlPanel 初始化
+const shaderCode = ref('')
 const geometryType = ref<GeometryType>('plane')
 const isPlaying = ref(true)
 const passes = ref<PassConfig[]>([])
+const needRender = ref(0)
+
+// 手动触发重渲染
+function handleRender() {
+  needRender.value++
+}
 </script>
 
 <template>
@@ -24,6 +25,7 @@ const passes = ref<PassConfig[]>([])
       @update:geometry-type="geometryType = $event"
       @update:is-playing="isPlaying = $event"
       @update:passes="passes = $event"
+      @render="handleRender"
     />
     <CesiumViewer
       class="cesium-viewer"
@@ -31,6 +33,8 @@ const passes = ref<PassConfig[]>([])
       :geometry-type="geometryType"
       :is-playing="isPlaying"
       :passes="passes"
+      :need-render="needRender"
+      @render="handleRender"
     />
   </div>
 </template>
