@@ -366,27 +366,151 @@ const multipassPreset: ShaderPreset = {
   name: '多通道示例',
   passes: [
     {
-      type: 'buffer',
-      name: 'BufferA',
+      id: 'bufferA',
+      type: 'BufferA',
       code: bufferACode,
       inputs: [], // 可引用其他 buffer
     },
     {
-      type: 'image',
-      name: 'Image',
+      id: 'image',
+      type: 'Image',
       code: imageCode,
       inputs: [
-        { channel: 0, buffer: 'BufferA' }, // 引用 BufferA
+        { channel: 0, source: 'bufferA' }, // 引用 BufferA
       ],
     },
   ],
 }
 ```
 
+#### iChannel 配置详解
+
+**PassInput 接口定义**：
+```typescript
+interface PassInput {
+  channel: number   // 0-3 对应 iChannel0-iChannel3
+  source: string    // 数据源：其他 pass 的 id 或 'self' 表示自反馈
+}
+```
+
+**配置步骤**：
+
+1. **添加通道输入**
+   - 点击通道配置区域的 **+iChannel** 按钮
+   - 系统自动分配下一个可用通道（0-3）
+   - 自动选择第一个可用的数据源
+
+2. **选择数据源**
+   - **self**: 自反馈（读取自己的上一帧输出）
+   - **bufferA/bufferB/...**: 引用其他 Buffer 的输出
+   - 每个通道最多配置 4 个输入（iChannel0-3）
+
+3. **配置示例**
+
+**示例 1: 自反馈（Trail Effect）**
+```typescript
+{
+  id: 'bufferA',
+  type: 'BufferA',
+  code: `
+void mainImage(out vec4 O, vec2 I) {
+    vec2 uv = I / iResolution.xy;
+    vec4 prev = texture(iChannel0, uv);  // 读取上一帧
+    vec3 newColor = vec3(uv, 0.5 + 0.5 * sin(iTime));
+    O = mix(prev, vec4(newColor, 1.0), 0.05);  // 混合新旧数据
+}`,
+  inputs: [
+    { channel: 0, source: 'self' }  // 自反馈
+  ]
+}
+```
+
+**示例 2: Buffer 链（Pipeline）**
+```typescript
+passes: [
+  {
+    id: 'bufferA',
+    type: 'BufferA',
+    code: bufferACode,
+    inputs: []  // 无输入
+  },
+  {
+    id: 'bufferB',
+    type: 'BufferB',
+    code: bufferBCode,
+    inputs: [
+      { channel: 0, source: 'bufferA' }  // 读取 BufferA
+    ]
+  },
+  {
+    id: 'image',
+    type: 'Image',
+    code: imageCode,
+    inputs: [
+      { channel: 0, source: 'bufferA' },  // iChannel0 = BufferA
+      { channel: 1, source: 'bufferB' }   // iChannel1 = BufferB
+    ]
+  }
+]
+```
+
+**示例 3: 多纹理混合**
+```typescript
+{
+  id: 'image',
+  type: 'Image',
+  code: `
+void mainImage(out vec4 O, vec2 I) {
+    vec2 uv = I / iResolution.xy;
+    vec4 tex0 = texture(iChannel0, uv);  // BufferA
+    vec4 tex1 = texture(iChannel1, uv);  // BufferB
+    vec4 tex2 = texture(iChannel2, uv);  // BufferC
+    O = mix(tex0, tex1, 0.5) + tex2 * 0.3;  // 混合三个纹理
+}`,
+  inputs: [
+    { channel: 0, source: 'bufferA' },
+    { channel: 1, source: 'bufferB' },
+    { channel: 2, source: 'bufferC' }
+  ]
+}
+```
+
+**UI 操作流程**：
+
+1. **创建多通道预设**
+   - 点击通道标签栏的 **+** 按钮添加新通道
+   - 选择通道类型（BufferA/B/C/D 或 Image）
+
+2. **配置 iChannel 输入**
+   - 选中目标通道
+   - 点击 **+iChannel** 按钮
+   - 从下拉菜单选择数据源
+
+3. **删除输入配置**
+   - 点击输入旁边的 **×** 按钮移除
+
 **注意事项**:
-- Buffer 名称必须唯一
-- 避免循环引用
-- 切换预设时需要销毁并重建 MultipassRenderer
+- Buffer id 必须唯一
+- 避免循环引用（A → B → A）
+- 最多 4 个输入通道（iChannel0-3）
+- 自反馈需要 Buffer 类型（Image 不支持）
+- 切换预设时会自动清理资源
+
+**调试技巧**：
+```glsl
+// 在 shader 中调试 iChannel 输入
+void mainImage(out vec4 O, vec2 I) {
+    vec2 uv = I / iResolution.xy;
+
+    // 检查 iChannel0 是否有数据
+    vec4 tex = texture(iChannel0, uv);
+    if (length(tex.rgb) < 0.01) {
+        O = vec4(1.0, 0.0, 0.0, 1.0);  // 红色表示无数据
+    } else {
+        O = tex;  // 正常显示
+    }
+}
+```
 
 ### 问题 6: fragCoord 坐标偏差
 
