@@ -95,12 +95,13 @@ vec3 aces_approx(vec3 v) {
   return clamp((v*(a*v+b))/(v*(c*v+d)+e), 0.0, 1.0);
 }
 
-float sphere(vec3 p, float r) {
+// 重命名为 sdf_sphere 避免 Cesium 内置标识符冲突
+float sdf_sphere(vec3 p, float r) {
   return length(p) - r;
 }
 
-// License: MIT, author: Inigo Quilez, found: https://iquilezles.org/articles/distfunctions/
-float box(vec2 p, vec2 b) {
+// 重命名为 sdf_box 避免 Cesium 内置标识符冲突
+float sdf_box(vec2 p, vec2 b) {
   vec2 d = abs(p)-b;
   return length(max(d,0.0)) + min(max(d.x,d.y),0.0);
 }
@@ -165,7 +166,7 @@ vec3 render0(vec3 ro, vec3 rd) {
   if (srd > 0.0) {
     vec3 pos  = ro + tp*rd;
     vec2 pp = pos.xz;
-    float db = box(pp, vec2(5.0, 9.0))-3.0;
+    float db = sdf_box(pp, vec2(5.0, 9.0))-3.0;
     
     col += topBoxCol*rd.y*rd.y*smoothstep(0.25, 0.0, db);
     col += 0.2*topBoxCol*exp(-0.5*max(db, 0.0));
@@ -181,7 +182,7 @@ float df2(vec3 p) {
   vec3 ds = shape(p);
   float d2 = ds.y-5E-3;
   float d0 = min(-ds.x, d2);
-  float d1 = sphere(p, inner_sphere);
+  float d1 = sdf_sphere(p, inner_sphere);
   g_gd = min(g_gd, vec2(d2, d1));
   float d = (min(d0, d1));
   return d;

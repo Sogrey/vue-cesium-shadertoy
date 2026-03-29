@@ -8,7 +8,8 @@ import { MultipassRenderer } from '@/utils/multipassRenderer'
 import type { GeometryType, PassConfig } from '@/types'
 
 // 配置 Cesium Ion Access Token
-Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI3ODZkMDQzOS03ZGJjLTQzZWUtYjlmYy04ZmM5Y2UwNzNhMmYiLCJpZCI6MjU5LCJpYXQiOjE2MzgyMDYwMDB9.cK1hsaFBgz0l2dG9Ry5vBFHWp-HF2lwjLC0tcK8Z8tY'
+Cesium.Ion.defaultAccessToken =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI3ODZkMDQzOS03ZGJjLTQzZWUtYjlmYy04ZmM5Y2UwNzNhMmYiLCJpZCI6MjU5LCJpYXQiOjE2MzgyMDYwMDB9.cK1hsaFBgz0l2dG9Ry5vBFHWp-HF2lwjLC0tcK8Z8tY'
 
 const props = defineProps<{
   shaderCode: string
@@ -93,34 +94,41 @@ onUnmounted(() => {
 watch(() => props.geometryType, updatePrimitive)
 
 // 监听手动重渲染信号
-watch(() => props.needRender, () => {
-  // 多通道模式
-  if (props.passes && props.passes.length > 0) {
-    updateMultipassPrimitive()
-    return
-  }
-  // 单通道模式
-  if (props.shaderCode) {
-    updatePrimitive()
-  }
-}, { immediate: true })
+watch(
+  () => props.needRender,
+  () => {
+    // 多通道模式
+    if (props.passes && props.passes.length > 0) {
+      updateMultipassPrimitive()
+      return
+    }
+    // 单通道模式
+    if (props.shaderCode) {
+      updatePrimitive()
+    }
+  },
+  { immediate: true },
+)
 
 // 监听播放状态
-watch(() => props.isPlaying, (playing) => {
-  if (playing) {
-    startTime = Date.now() - pausedTime // 恢复时从暂停位置继续
-    startAnimation()
-  } else {
-    stopAnimation()
-  }
-})
+watch(
+  () => props.isPlaying,
+  (playing) => {
+    if (playing) {
+      startTime = Date.now() - pausedTime // 恢复时从暂停位置继续
+      startAnimation()
+    } else {
+      stopAnimation()
+    }
+  },
+)
 
 let pausedTime = 0 // 记录暂停时的时间偏移
 
 function startAnimation() {
   const animate = () => {
     if (!viewer || !primitive) return
-    
+
     // 检查是否暂停
     if (!props.isPlaying) {
       return
@@ -139,13 +147,13 @@ function startAnimation() {
       if (appearance.material) {
         const material = appearance.material
         material.uniforms.u_time = currentTime
-        
+
         // 更新 resolution
         if (material.uniforms.u_resolution) {
           material.uniforms.u_resolution.x = viewer.canvas.width
           material.uniforms.u_resolution.y = viewer.canvas.height
         }
-        
+
         // 更新 mouse
         if (material.uniforms.u_mouse) {
           material.uniforms.u_mouse.x = mousePos.x
@@ -153,7 +161,7 @@ function startAnimation() {
           material.uniforms.u_mouse.z = mousePos.z
           material.uniforms.u_mouse.w = mousePos.w
         }
-        
+
         // 更新 frame
         if (material.uniforms.u_frame !== undefined) {
           material.uniforms.u_frame = multipassRenderer?.getFrameCount() || 0
@@ -163,7 +171,7 @@ function startAnimation() {
         if (props.passes && multipassRenderer) {
           updateChannelTextures(material)
         }
-        
+
         // 记录当前时间偏移
         pausedTime = material.uniforms.u_time
       }
@@ -184,8 +192,8 @@ function startAnimation() {
 function renderMultipassBuffers(time: number) {
   if (!props.passes || !multipassRenderer) return
 
-  const bufferPasses = props.passes.filter(p => p.type.startsWith('Buffer'))
-  
+  const bufferPasses = props.passes.filter((p) => p.type.startsWith('Buffer'))
+
   for (const pass of bufferPasses) {
     multipassRenderer.renderBufferPass(pass, {
       time,
@@ -201,7 +209,7 @@ function renderMultipassBuffers(time: number) {
 function updateChannelTextures(material: Cesium.Material) {
   if (!props.passes || !multipassRenderer || !viewer) return
 
-  const imagePass = props.passes.find(p => p.type === 'Image')
+  const imagePass = props.passes.find((p) => p.type === 'Image')
   if (!imagePass) return
 
   const width = viewer.canvas.width
@@ -236,8 +244,12 @@ function updateChannelTextures(material: Cesium.Material) {
           sampler: new Sampler({
             wrapS: (CesiumInternal.TextureWrap as Record<string, unknown>).REPEAT,
             wrapT: (CesiumInternal.TextureWrap as Record<string, unknown>).REPEAT,
-            minificationFilter: (CesiumInternal.TextureMinificationFilter as Record<string, unknown>).LINEAR,
-            magnificationFilter: (CesiumInternal.TextureMagnificationFilter as Record<string, unknown>).LINEAR,
+            minificationFilter: (
+              CesiumInternal.TextureMinificationFilter as Record<string, unknown>
+            ).LINEAR,
+            magnificationFilter: (
+              CesiumInternal.TextureMagnificationFilter as Record<string, unknown>
+            ).LINEAR,
           }),
         })
         cesiumTextures.set(input.source, cesiumTexture)
@@ -281,7 +293,7 @@ const geoPosition = {
 // 根据几何体类型获取相机距离配置
 function getCameraDistance(type: GeometryType): number {
   const baseDistance = 600000 // 基础距离 600km
-  
+
   // 不同几何体的观看距离倍数
   const multipliers: Record<GeometryType, number> = {
     plane: 2.5,
@@ -289,7 +301,7 @@ function getCameraDistance(type: GeometryType): number {
     cube: 2.2,
     cylinder: 2.0,
   }
-  
+
   return baseDistance * multipliers[type]
 }
 
@@ -298,12 +310,12 @@ function focusOnGeometry(type: GeometryType) {
   if (!viewer) return
 
   const distance = getCameraDistance(type)
-  
+
   // 相机位置：在几何体位置上方，并偏移一定距离
-  const cameraLongitude = geoPosition.longitude - 0.01 * distance / 111000 // 约 1° = 111km
-  const cameraLatitude = geoPosition.latitude - 0.008 * distance / 111000
+  const cameraLongitude = geoPosition.longitude - (0.01 * distance) / 111000 // 约 1° = 111km
+  const cameraLatitude = geoPosition.latitude - (0.008 * distance) / 111000
   const cameraHeight = geoPosition.height + distance * 0.8
-  
+
   viewer.camera.flyTo({
     destination: Cesium.Cartesian3.fromDegrees(cameraLongitude, cameraLatitude, cameraHeight),
     orientation: {
@@ -318,15 +330,27 @@ function focusOnGeometry(type: GeometryType) {
 function updatePrimitive(shaderOverride?: string) {
   if (!viewer) return
 
+  // 使用传入的 shader 或 props 中的 shader
+  const code = shaderOverride || props.shaderCode
+  
+  // 验证 shader code
+  if (!code || code.trim().length === 0) {
+    console.warn('[CesiumViewer] Shader code is empty, skipping update')
+    return
+  }
+  
+  // 检测是否为几何体类型名称（错误情况）
+  if (['plane', 'sphere', 'cube', 'cylinder'].includes(code)) {
+    console.error('[CesiumViewer] Invalid shader code - geometry type name received:', code)
+    return
+  }
+
   // 移除旧的 primitive
   if (primitive) {
     viewer.scene.primitives.remove(primitive)
   }
 
   try {
-    // 使用传入的 shader 或 props 中的 shader
-    const code = shaderOverride || props.shaderCode
-    
     // 转换 shader
     const fragmentShader = convertShaderToyToCesium(code)
 
@@ -383,7 +407,11 @@ function updateMultipassPrimitive() {
 
   // 创建新的多通道渲染器
   if (gl) {
-    multipassRenderer = new MultipassRenderer(gl as WebGL2RenderingContext, canvas.width, canvas.height)
+    multipassRenderer = new MultipassRenderer(
+      gl as WebGL2RenderingContext,
+      canvas.width,
+      canvas.height,
+    )
   }
 
   // 初始化通道 FBO
@@ -395,7 +423,7 @@ function updateMultipassPrimitive() {
   }
 
   // 获取 Image 通道
-  const imagePass = props.passes.find(p => p.type === 'Image')
+  const imagePass = props.passes.find((p) => p.type === 'Image')
   if (!imagePass || !imagePass.code) {
     console.warn('未找到 Image 通道')
     return
@@ -405,24 +433,24 @@ function updateMultipassPrimitive() {
   const fragmentShader = convertMultipassShader(imagePass.code)
 
   // 获取需要初始化的通道索引
-  const channels = imagePass.inputs.map(input => input.channel)
+  const channels = imagePass.inputs.map((input) => input.channel)
 
   try {
     // 创建材质
-    const material = createCesiumMaterial(Cesium, fragmentShader, {
-      iTime: 0,
-      iResolution: [viewer.canvas.width, viewer.canvas.height, 1],
-      iMouse: [0, 0, 0, 0],
-      iFrame: 0,
-    }, channels)
+    const material = createCesiumMaterial(
+      Cesium,
+      fragmentShader,
+      {
+        iTime: 0,
+        iResolution: [viewer.canvas.width, viewer.canvas.height, 1],
+        iMouse: [0, 0, 0, 0],
+        iFrame: 0,
+      },
+      channels,
+    )
 
     // 创建几何体
-    const geometryInstance = createGeometry(
-      Cesium,
-      props.geometryType,
-      200000,
-      geoPosition,
-    )
+    const geometryInstance = createGeometry(Cesium, props.geometryType, 200000, geoPosition)
 
     // 创建 primitive
     primitive = createPrimitive(Cesium, geometryInstance, material)
@@ -453,7 +481,7 @@ function convertMultipassShader(code: string): string {
       channels.push(i)
     }
   }
-  
+
   // 使用支持 channels 的转换函数
   return convertShaderToyToCesium(code, channels)
 }

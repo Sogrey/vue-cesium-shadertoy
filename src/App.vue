@@ -21,10 +21,10 @@ function handleRender() {
   <div class="app-container">
     <ControlPanel
       class="control-panel"
-      @update:shader-code="shaderCode = $event"
-      @update:geometry-type="geometryType = $event"
-      @update:is-playing="isPlaying = $event"
-      @update:passes="passes = $event"
+      @update:shader-code="val => shaderCode = val"
+      @update:geometry-type="val => geometryType = val"
+      @update:is-playing="val => isPlaying = val"
+      @update:passes="val => passes = val"
       @render="handleRender"
     />
     <CesiumViewer
