@@ -37,6 +37,53 @@ const passTypes: PassType[] = [
 // 判断是否为多通道模式
 const isMultipassMode = computed(() => passes.value.length > 1 || (passes.value.length === 1 && passes.value[0]?.type !== 'Image'))
 
+// 根据通道类型获取默认代码模板
+function getDefaultCodeForType(type: PassType): string {
+  switch (type) {
+    case 'Sound':
+      return `vec2 mainSound( int samp, float time )
+{
+    // A 440 Hz wave that attenuates quickly overt time
+    return vec2( sin(6.2831*440.0*time)*exp(-3.0*time) );
+}`
+    case 'CubemapA':
+      return `void mainCubemap( out vec4 fragColor, in vec2 fragCoord, in vec3 rayOri, in vec3 rayDir )
+{
+    // Ray direction as color
+    vec3 col = 0.5 + 0.5*rayDir;
+
+    // Output to cubemap
+    fragColor = vec4(col,1.0);
+}`
+    case 'BufferA':
+    case 'BufferB':
+    case 'BufferC':
+    case 'BufferD':
+      return `void mainImage( out vec4 fragColor, in vec2 fragCoord )
+{
+    fragColor = vec4(0.0,0.0,1.0,1.0);
+}`
+    case 'Common':
+      return `vec4 someFunction( vec4 a, float b )
+{
+    return a+b;
+}`
+    case 'Image':
+    default:
+      return `void mainImage( out vec4 fragColor, in vec2 fragCoord )
+{
+    // Normalized pixel coordinates (from 0 to 1)
+    vec2 uv = fragCoord / iResolution.xy;
+
+    // Time varying pixel color
+    vec3 col = 0.5 + 0.5*cos(iTime+uv.xyx+vec3(0,2,4));
+
+    // Output to screen
+    fragColor = vec4(col,1.0);
+}`
+  }
+}
+
 // 初始化默认通道
 function initDefaultPass(code: string) {
   passes.value = [
@@ -55,10 +102,11 @@ function initDefaultPass(code: string) {
 function addPass(type?: PassType) {
   const newId = `pass_${Date.now()}`
   const newType = type || (passes.value.length === 0 ? 'Image' : 'BufferA')
+  const defaultCode = getDefaultCodeForType(newType)
   passes.value.push({
     id: newId,
     type: newType,
-    code: 'void mainImage(out vec4 O, vec2 I) {\n    O = vec4(0.0);\n}',
+    code: defaultCode,
     inputs: [],
   })
   activePassId.value = newId
@@ -90,6 +138,12 @@ function updatePassType(passId: string, type: PassType) {
   const pass = passes.value.find((p) => p.id === passId)
   if (pass) {
     pass.type = type
+    // 更新代码为对应类型的默认模板
+    pass.code = getDefaultCodeForType(type)
+    // 更新 shaderCode 显示
+    if (activePassId.value === passId) {
+      shaderCode.value = pass.code
+    }
   }
 }
 
