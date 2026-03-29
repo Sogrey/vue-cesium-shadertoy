@@ -9,8 +9,24 @@ export interface ShaderToyUniforms {
   iFrame: number
 }
 
-// 通道类型
-export type PassType = 'BufferA' | 'BufferB' | 'BufferC' | 'BufferD' | 'Image' | 'Common'
+/**
+ * 通道类型（对应 ShaderToy 的 Pass 类型）
+ *
+ * - Image: 最终图像输出（必须有一个）
+ * - BufferA/B/C/D: 离屏缓冲区，用于多通道渲染
+ * - Common: 公共代码，可被其他通道引用
+ * - Sound: 音频输出通道
+ * - CubemapA: 立方体贴图通道
+ */
+export type PassType =
+  | 'BufferA'
+  | 'BufferB'
+  | 'BufferC'
+  | 'BufferD'
+  | 'Image'
+  | 'Common'
+  | 'Sound'
+  | 'CubemapA'
 
 // 通道输入源
 export interface PassInput {

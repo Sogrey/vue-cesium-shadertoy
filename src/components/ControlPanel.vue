@@ -23,7 +23,16 @@ const passes = ref<PassConfig[]>([])
 const activePassId = ref<string>('main')
 
 // 获取可用的通道类型
-const passTypes: PassType[] = ['BufferA', 'BufferB', 'BufferC', 'BufferD', 'Image']
+const passTypes: PassType[] = [
+  'Image',
+  'BufferA',
+  'BufferB',
+  'BufferC',
+  'BufferD',
+  'Common',
+  'Sound',
+  'CubemapA',
+]
 
 // 判断是否为多通道模式
 const isMultipassMode = computed(() => passes.value.length > 1 || (passes.value.length === 1 && passes.value[0]?.type !== 'Image'))

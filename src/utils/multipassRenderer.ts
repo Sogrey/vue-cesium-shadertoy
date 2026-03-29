@@ -101,11 +101,26 @@ export class MultipassRenderer {
    */
   initPasses(passes: PassConfig[]) {
     const bufferPasses = passes.filter(p => p.type.startsWith('Buffer'))
-    
+
     for (const pass of bufferPasses) {
       if (!this.fboMap.has(pass.id)) {
         this.fboMap.set(pass.id, this.createFBO(this.width, this.height))
       }
+    }
+
+    // 检查不支持的通道类型
+    const unsupportedTypes = passes.filter(p =>
+      p.type === 'Sound' ||
+      p.type === 'CubemapA' ||
+      p.type === 'Common'
+    )
+
+    if (unsupportedTypes.length > 0) {
+      console.warn(
+        '[MultipassRenderer] 以下通道类型暂不支持:',
+        unsupportedTypes.map(p => `${p.id}(${p.type})`).join(', '),
+        '\n支持的类型: Image, BufferA/B/C/D'
+      )
     }
   }
 
