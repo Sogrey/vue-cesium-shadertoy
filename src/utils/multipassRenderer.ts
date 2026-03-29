@@ -312,7 +312,7 @@ export class MultipassRenderer {
     const fboConfig = this.fboMap.get(passId)
     if (!fboConfig) return null
 
-    const gl = this.gl
+    const gl = this.gl as WebGL2RenderingContext
     gl.bindFramebuffer(gl.READ_FRAMEBUFFER, fboConfig.framebuffer)
     const pixels = new Uint8Array(this.width * this.height * 4)
     gl.readPixels(0, 0, this.width, this.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels)

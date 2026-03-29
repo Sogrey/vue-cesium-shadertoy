@@ -1,4 +1,12 @@
 import type { GeometryType } from '@/types'
+import type {
+  Geometry,
+  Matrix4 as Matrix4Type,
+  GeometryInstance,
+  Material,
+  Primitive,
+  GeometryAttributes,
+} from 'cesium'
 
 /**
  * 创建几何体
@@ -11,7 +19,7 @@ export function createGeometry(
 ) {
   const { Cartesian3, Matrix4, Transforms, GeometryInstance } = cesium
 
-  let geometry: any
+  let geometry: Geometry | undefined
 
   switch (type) {
     case 'plane':
@@ -30,8 +38,12 @@ export function createGeometry(
       geometry = createPlane(cesium, scale)
   }
 
+  if (!geometry) {
+    geometry = createPlane(cesium, scale)
+  }
+
   // 计算模型矩阵，将几何体放置在指定位置
-  let modelMatrix: any
+  let modelMatrix: Matrix4Type
   if (position) {
     const cartesianPosition = Cartesian3.fromDegrees(
       position.longitude,
@@ -102,7 +114,7 @@ function createPlane(cesium: typeof import('cesium'), scale: number) {
         componentsPerAttribute: 2,
         values: textureCoordinates,
       }),
-    } as any,
+    } as GeometryAttributes,
     indices,
     primitiveType: PrimitiveType.TRIANGLES,
     boundingSphere,
@@ -151,9 +163,9 @@ function createCylinder(cesium: typeof import('cesium'), scale: number) {
  */
 export function createPrimitive(
   cesium: typeof import('cesium'),
-  geometryInstance: any,
-  material: any,
-) {
+  geometryInstance: GeometryInstance,
+  material: Material,
+): Primitive {
   const { Primitive, MaterialAppearance } = cesium
 
   return new Primitive({
