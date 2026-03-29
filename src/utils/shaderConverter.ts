@@ -68,7 +68,7 @@ export function createCesiumMaterial(
   uniforms: ShaderToyUniforms,
   channels?: number[] // 需要初始化的通道索引
 ) {
-  const { Material, Cartesian3, Cartesian4, Texture } = cesium
+  const { Material, Cartesian3, Cartesian4 } = cesium
 
   // 构建 uniforms 对象
   const materialUniforms: Record<string, unknown> = {
