@@ -22,6 +22,13 @@ import rocailleCode from './rocaille.glsl?raw'
 import clearlyABugCode from './clearlyABug.glsl?raw'
 import cosmicPearlBufferA from './cosmicPearl_bufferA.glsl?raw'
 import cosmicPearlImage from './cosmicPearl_image.glsl?raw'
+import metaShaderCommon from './metaShader_common.glsl?raw'
+import metaShaderBufferARaw from './metaShader_bufferA.glsl?raw'
+import metaShaderImageRaw from './metaShader_image.glsl?raw'
+
+// MetaShader: 合并 Common 代码到各通道
+const metaShaderBufferA = metaShaderCommon + '\n' + metaShaderBufferARaw
+const metaShaderImage = metaShaderCommon + '\n' + metaShaderImageRaw
 
 /**
  * 辅助函数：创建单通道预设
@@ -128,6 +135,29 @@ void mainImage(out vec4 O, vec2 I)
         code: cosmicPearlImage,
         inputs: [
           { channel: 0, source: 'bufferA' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'metaShader',
+    name: 'MetaShader [多通道]',
+    author: 'Patrick JAILLET',
+    passes: [
+      {
+        id: 'bufferA',
+        type: 'BufferA',
+        code: metaShaderBufferA,
+        inputs: [
+          { channel: 0, source: 'self' },  // 自反馈：读取上一帧
+        ],
+      },
+      {
+        id: 'image',
+        type: 'Image',
+        code: metaShaderImage,
+        inputs: [
+          { channel: 0, source: 'bufferA' },  // 读取 BufferA 的输出
         ],
       },
     ],

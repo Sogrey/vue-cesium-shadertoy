@@ -512,7 +512,118 @@ void mainImage(out vec4 O, vec2 I) {
 }
 ```
 
-### 问题 6: fragCoord 坐标偏差
+### 问题 6: Common 通道处理
+
+**现象**: ShaderToy 的 Common 通道包含公共函数，不知道如何在项目中使用
+
+**原因**: Common 通道不是渲染通道，而是代码共享机制
+
+**解决方案**:
+
+Common 通道在 ShaderToy 中用于定义公共函数，被其他通道引用。在我们的实现中，有两种处理方式：
+
+#### 方式 1: 合并代码（推荐）
+
+将 Common 代码合并到每个使用它的通道中：
+
+```typescript
+const commonCode = `
+mat2 rotation(float a) {
+    float s = sin(a);
+    float c = cos(a);
+    return mat2(c, -s, s, c);
+}
+
+vec3 hachage33(vec3 p) {
+    p = fract(p * vec3(443.897, 441.423, 437.195));
+    p += dot(p, p.yxz + 19.19);
+    return fract((p.xxy + p.yxx) * p.zyx);
+}
+// ... 其他公共函数
+`
+
+const bufferACode = commonCode + `
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    // 使用 Common 中定义的函数
+    vec2 uv = fragCoord / iResolution.xy;
+    vec2 rotated = rotation(iTime) * uv;  // 调用公共函数
+    fragColor = vec4(rotated, 0.0, 1.0);
+}
+`
+```
+
+#### 方式 2: 使用 Vite 导入
+
+将 Common 保存为独立文件，在构建时导入：
+
+```typescript
+// metaShader_common.glsl
+mat2 rotation(float a) {
+    float s = sin(a);
+    float c = cos(a);
+    return mat2(c, -s, s, c);
+}
+
+// index.ts
+import commonCode from './metaShader_common.glsl?raw'
+import bufferACodeRaw from './metaShader_bufferA.glsl?raw'
+
+const bufferACode = commonCode + '\n' + bufferACodeRaw
+```
+
+#### 完整示例：MetaShader 多通道配置
+
+```typescript
+import commonCode from './metaShader_common.glsl?raw'
+import bufferACodeRaw from './metaShader_bufferA.glsl?raw'
+import imageCodeRaw from './metaShader_image.glsl?raw'
+
+// 合并 Common 代码
+const bufferACode = commonCode + '\n' + bufferACodeRaw
+const imageCode = commonCode + '\n' + imageCodeRaw
+
+const metaShaderPreset: ShaderPreset = {
+  id: 'metaShader',
+  name: 'MetaShader',
+  author: 'Patrick JAILLET',
+  passes: [
+    {
+      id: 'bufferA',
+      type: 'BufferA',
+      code: bufferACode,
+      inputs: [
+        { channel: 0, source: 'self' }  // 自反馈
+      ]
+    },
+    {
+      id: 'image',
+      type: 'Image',
+      code: imageCode,
+      inputs: [
+        { channel: 0, source: 'bufferA' }  // 读取 BufferA 输出
+      ]
+    }
+  ]
+}
+```
+
+**关键点**:
+- Common 通道本身**不需要 inputs 配置**
+- Common 代码必须**合并到每个使用它的通道**
+- 自反馈使用 `source: 'self'`
+- 引用其他 Buffer 使用 `source: 'bufferId'`
+
+**调试 Common 问题**:
+```glsl
+// 如果出现 "undefined function" 错误
+// 检查 Common 代码是否已合并到当前通道
+
+// 在 shader 开头添加调试
+#pragma glslify: rotation = require('./common.glsl')
+// 或者直接在代码中定义
+```
+
+### 问题 7: fragCoord 坐标偏差
 
 **现象**: Shader 渲染结果与 ShaderToy 原始效果有微小偏差
 
