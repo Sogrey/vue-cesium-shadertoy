@@ -1,6 +1,27 @@
 // MetaShader - Image
 // URL: https://www.shadertoy.com/view/sf23Dc
 
+
+// ┌─────────────────────────────────────────┐
+// │  Common (公共函数)                       │
+// │  - rotation()                            │
+// │  - hachage33()                           │
+// │  - voronoi()                             │
+// │  - trajectoire()                         │
+// │  - carte()                               │
+// └──────────────┬──────────────────────────┘
+//                │
+//                ├──────────┐
+//                │          │
+//                ▼          ▼
+// ┌──────────────────┐  ┌──────────────────┐
+// │ BufferA          │  │ Image            │
+// │                  │  │                  │
+// │ iChannel0 ◄──────┼──┼── iChannel0      │
+// │ (self 自反馈)    │  │ (读取 BufferA)    │
+// └──────────────────┘  └──────────────────┘
+
+
 void mainImage(out vec4 couleurFrag, in vec2 coordonneesFrag) {
     vec2 uv = coordonneesFrag / iResolution.xy;
     vec2 dcv = (coordonneesFrag * 2.0 - iResolution.xy) / iResolution.y;

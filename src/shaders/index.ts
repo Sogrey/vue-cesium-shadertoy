@@ -1,6 +1,6 @@
 /**
  * Shader 预设集合
- * 
+ *
  * 使用 Vite 的 ?raw 后缀导入 glsl 文件作为字符串
  * 文档: https://vitejs.dev/guide/assets.html#importing-asset-as-string
  */
@@ -26,7 +26,17 @@ import metaShaderCommon from './metaShader_common.glsl?raw'
 import metaShaderBufferARaw from './metaShader_bufferA.glsl?raw'
 import metaShaderImageRaw from './metaShader_image.glsl?raw'
 
-// MetaShader: 合并 Common 代码到各通道
+/**
+ * MetaShader: 合并 Common 代码到各通道
+ *
+ * 重要：Common 不是独立的 Pass，而是公共代码库
+ * ShaderToy 中 Common 定义的函数需要被其他通道使用
+ *
+ * 处理方式：
+ * 1. 将 Common 代码合并到每个使用它的通道
+ * 2. BufferA 和 Image 都包含 Common 的所有函数
+ * 3. 因此 passes 数组中只有 BufferA 和 Image 两个 Pass
+ */
 const metaShaderBufferA = metaShaderCommon + '\n' + metaShaderBufferARaw
 const metaShaderImage = metaShaderCommon + '\n' + metaShaderImageRaw
 
@@ -37,7 +47,7 @@ function createSinglePassPreset(
   id: string,
   name: string,
   author: string,
-  code: string
+  code: string,
 ): ShaderPreset {
   return {
     id,
@@ -95,9 +105,7 @@ void mainImage(out vec4 O, vec2 I)
     O = mix(prev, vec4(newColor, 1.0), 0.03);
 }
 `,
-        inputs: [
-          { channel: 0, source: 'self' },
-        ],
+        inputs: [{ channel: 0, source: 'self' }],
       },
       {
         id: 'image',
@@ -110,9 +118,7 @@ void mainImage(out vec4 O, vec2 I)
     O = texture(iChannel0, uv);
 }
 `,
-        inputs: [
-          { channel: 0, source: 'bufferA' },
-        ],
+        inputs: [{ channel: 0, source: 'bufferA' }],
       },
     ],
   },
@@ -125,23 +131,19 @@ void mainImage(out vec4 O, vec2 I)
         id: 'bufferA',
         type: 'BufferA',
         code: cosmicPearlBufferA,
-        inputs: [
-          { channel: 0, source: 'self' },
-        ],
+        inputs: [{ channel: 0, source: 'self' }],
       },
       {
         id: 'image',
         type: 'Image',
         code: cosmicPearlImage,
-        inputs: [
-          { channel: 0, source: 'bufferA' },
-        ],
+        inputs: [{ channel: 0, source: 'bufferA' }],
       },
     ],
   },
   {
     id: 'metaShader',
-    name: 'MetaShader [多通道]',
+    name: 'MetaShader',
     author: 'Patrick JAILLET',
     passes: [
       {
@@ -149,7 +151,7 @@ void mainImage(out vec4 O, vec2 I)
         type: 'BufferA',
         code: metaShaderBufferA,
         inputs: [
-          { channel: 0, source: 'self' },  // 自反馈：读取上一帧
+          { channel: 0, source: 'self' }, // 自反馈：读取上一帧
         ],
       },
       {
@@ -157,7 +159,7 @@ void mainImage(out vec4 O, vec2 I)
         type: 'Image',
         code: metaShaderImage,
         inputs: [
-          { channel: 0, source: 'bufferA' },  // 读取 BufferA 的输出
+          { channel: 0, source: 'bufferA' }, // 读取 BufferA 的输出
         ],
       },
     ],
@@ -169,7 +171,7 @@ void mainImage(out vec4 O, vec2 I)
  */
 export function isMultipassPreset(preset: ShaderPreset): boolean {
   if (!preset.passes) return false
-  return preset.passes.some(p => p.type.startsWith('Buffer'))
+  return preset.passes.some((p) => p.type.startsWith('Buffer'))
 }
 
 /**
