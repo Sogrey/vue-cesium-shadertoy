@@ -51,8 +51,13 @@ onUnmounted(() => {
       v-if="isMobile"
       class="toggle-panel-btn"
       @click="togglePanel"
+      :title="isPanelOpen ? '收起面板' : '展开面板'"
     >
-      {{ isPanelOpen ? '◀' : '▶' }}
+      <span class="hamburger" :class="{ 'is-open': isPanelOpen }">
+        <span></span>
+        <span></span>
+        <span></span>
+      </span>
     </button>
 
     <!-- 遮罩层（移动端） -->
@@ -148,25 +153,59 @@ html, body, #app {
     top: 20px;
     left: 20px;
     z-index: 1001;
-    width: 48px;
-    height: 48px;
-    border: 2px solid #00d9ff;
-    background: rgba(22, 33, 62, 0.95);
-    color: #00d9ff;
+    width: 52px;
+    height: 52px;
+    border: none;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     border-radius: 50%;
-    font-size: 20px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 12px rgba(0, 217, 255, 0.3);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
   }
 
   .toggle-panel-btn:hover {
-    background: #00d9ff;
-    color: #16213e;
-    transform: scale(1.1);
+    transform: scale(1.05) rotate(90deg);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+  }
+
+  .toggle-panel-btn:active {
+    transform: scale(0.95);
+  }
+
+  /* 汉堡菜单图标 */
+  .hamburger {
+    width: 20px;
+    height: 14px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .hamburger span {
+    display: block;
+    width: 100%;
+    height: 2px;
+    background: white;
+    border-radius: 2px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transform-origin: center;
+  }
+
+  .hamburger.is-open span:nth-child(1) {
+    transform: translateY(6px) rotate(45deg);
+  }
+
+  .hamburger.is-open span:nth-child(2) {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+
+  .hamburger.is-open span:nth-child(3) {
+    transform: translateY(-6px) rotate(-45deg);
   }
 
   /* 遮罩层 */
