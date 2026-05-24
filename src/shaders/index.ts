@@ -25,6 +25,10 @@ import cosmicPearlImage from './cosmicPearl_image.glsl?raw'
 import metaShaderCommon from './metaShader_common.glsl?raw'
 import metaShaderBufferARaw from './metaShader_bufferA.glsl?raw'
 import metaShaderImageRaw from './metaShader_image.glsl?raw'
+import rayDifferentialCode from './rayDifferential.glsl?raw'
+import chineseFlagCode from './chineseFlag.glsl?raw'
+import abstractWaterfallCode from './abstractWaterfall.glsl?raw'
+import windows10LogoCode from './windows10Logo.glsl?raw'
 
 /**
  * MetaShader: Common 代码独立存储
@@ -66,7 +70,10 @@ function createSinglePassPreset(
  * 所有预设 Shader 列表
  */
 export const shaderPresets: ShaderPreset[] = [
-  // 单通道预设
+  // 单通道预设 - 默认显示中国国旗
+  createSinglePassPreset('chineseFlag', '中国国旗', 'ShaderToy', chineseFlagCode),
+  createSinglePassPreset('abstractWaterfall', '抽象瀑布', 'mrange', abstractWaterfallCode),
+  createSinglePassPreset('windows10Logo', 'Windows 10 Logo', 'ShaderToy', windows10LogoCode),
   createSinglePassPreset('plasma', '等离子体', 'ShaderToy', plasmaCode),
   createSinglePassPreset('fractal', '分形波纹', 'ShaderToy', fractalCode),
   createSinglePassPreset('neon', '霓虹隧道', 'ShaderToy', neonCode),
@@ -79,6 +86,7 @@ export const shaderPresets: ShaderPreset[] = [
   createSinglePassPreset('selfReflect', '自我反射', 'ShaderToy', selfReflectCode),
   createSinglePassPreset('rocaille', 'Rocaille', 'XorDev', rocailleCode),
   createSinglePassPreset('clearlyABug', 'Clearly a Bug', 'XorDev', clearlyABugCode),
+  createSinglePassPreset('rayDifferential', '光线微分过滤', 'Inigo Quilez', rayDifferentialCode),
 
   // 多通道预设
   {

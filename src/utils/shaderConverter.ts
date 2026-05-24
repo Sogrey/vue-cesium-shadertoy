@@ -50,7 +50,7 @@ czm_material czm_getMaterial(czm_materialInput materialInput)
     mainImage(fragColor, fragCoord);
 
     material.diffuse = fragColor.rgb;
-    material.alpha = fragColor.a;
+    material.alpha = clamp(fragColor.a, 0.0, 1.0);
 
     return material;
 }
